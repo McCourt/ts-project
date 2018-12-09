@@ -96,7 +96,7 @@ amazon.stock = df %>% filter(Stock == "Amazon") %>% arrange(Date)
 
 ggtsdisplay(amazon.stock %>% select(Close), main = "Close Price")
 
-ts.model = auto.arima(amazon.stock %>% select(Close))
+ts.model = auto.arima(amazon.stock %>% select(Close), seasonal = TRUE)
 ggtsdisplay(ts.model$residuals, main = "Arima(5, 2, 0)")
 ts.model %>% summary()
 
@@ -121,7 +121,7 @@ ggplot(data = amazon.stock, aes(x = Date)) +
 apple.stock = df %>% filter(Stock == "Apple") %>% arrange(Date)
 ggtsdisplay(apple.stock %>% select(Close), main = "Close Price")
 
-ts.model = auto.arima(apple.stock %>% select(Close))
+ts.model = auto.arima(apple.stock %>% select(Close), seasonal = TRUE)
 ggtsdisplay(ts.model$residuals, main = "Arima(5, 2, 0)")
 ts.model %>% summary()
 
@@ -146,7 +146,7 @@ ggplot(data = apple.stock, aes(x = Date)) +
 google.stock = df %>% filter(Stock == "Google") %>% arrange(Date)
 ggtsdisplay(google.stock %>% select(Close), main = "Close Price")
 
-ts.model = auto.arima(google.stock %>% select(Close))
+ts.model = auto.arima(google.stock %>% select(Close), seasonal = TRUE)
 ggtsdisplay(ts.model$residuals, main = "Arima(1, 1, 1)")
 ts.model %>% summary()
 
@@ -171,7 +171,7 @@ ggplot(data = google.stock, aes(x = Date)) +
 facebook.stock = df %>% filter(Stock == "Facebook") %>% arrange(Date)
 ggtsdisplay(facebook.stock %>% select(Close), main = "Close Price")
 
-ts.model = auto.arima(facebook.stock %>% select(Close))
+ts.model = auto.arima(facebook.stock %>% select(Close), seasonal = TRUE)
 ggtsdisplay(ts.model$residuals, main = "Arima(2, 1, 2)")
 ts.model %>% summary()
 
