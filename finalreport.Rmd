@@ -49,7 +49,7 @@ Lastly, we wish to come to a conclusion for our questions of interest: what are 
 ```{r message=FALSE}
 summary(df)
 
-ggplot(data = cor(df %>% select(Close, Open, Volume, diff, High, Low)) %>% reshape2::melt(), aes(x=Var1, y=Var2, fill=value)) + 
+ggplot(data = cor(df %>% select(Close, Open, Volume, High, Low)) %>% reshape2::melt(), aes(x=Var1, y=Var2, fill=value)) + 
   geom_tile() +
   ggtitle("Correltion matrix")
 
