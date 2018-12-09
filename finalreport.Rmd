@@ -15,6 +15,7 @@ library(grid)
 library(gridExtra)
 library(rugarch)
 library(scoringRules)
+library(forcats)
 
 set.seed(20181208)
 df = read.csv("data.csv")
@@ -134,6 +135,7 @@ ggplot(data = amazon.stock, aes(x = Date)) +
 
 rmse(amazon.stock$diff, amazon.stock$naive.pred)
 rmse(amazon.stock$diff, amazon.stock$ts.pred)
+forecast(ts.model, 30) %>% plot(xlim=c(5200, 5300))
 ```
 
 ```{r}
@@ -162,6 +164,7 @@ ggplot(data = apple.stock, aes(x = Date)) +
 
 rmse(apple.stock$diff, apple.stock$naive.pred)
 rmse(apple.stock$diff, apple.stock$ts.pred)
+forecast(ts.model, 30) %>% plot(xlim=c(9350, 9450))
 ```
 
 ```{r}
@@ -190,6 +193,7 @@ ggplot(data = google.stock, aes(x = Date)) +
 
 rmse(google.stock$diff, google.stock$naive.pred)
 rmse(google.stock$diff, google.stock$ts.pred)
+forecast(ts.model, 30) %>% plot(xlim=c(3400, 3470))
 ```
 
 ```{r}
@@ -218,6 +222,7 @@ ggplot(data = facebook.stock, aes(x = Date)) +
 
 rmse(facebook.stock$diff, facebook.stock$naive.pred)
 rmse(facebook.stock$diff, facebook.stock$ts.pred)
+forecast(ts.model, 30) %>% plot(xlim=c(1450, 1520))
 ```
 
 ## Conclusion
