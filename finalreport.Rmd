@@ -48,17 +48,20 @@ Lastly, we wish to come to a conclusion for our questions of interest: what are 
 
 ```{r message=FALSE}
 summary(df)
+
+ggplot(data = cor(df %>% select(Close, Open, Volume, diff, High, Low)) %>% reshape2::melt(), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() +
+  ggtitle("Correltion matrix")
+
 cor(df$Open, df$Close)
 ```
 
-Among all variables available in the dataset, we only focused on two variables Date and Close. Reasons why we didn't use other variables are as follows:
-1. Open: The correlation between variables Open and Close is almost one. This result intuitively makes sense because the average maginitude of daily stock price fluctuation is minimal compared with stock price itself. However, since Open and Close are almost perfectly correlated, we thought that using Open as the predictor for Close will not help us understand the research question that we're interested. Therefore, we didn't include Open in our analysis.
-2. High & Low & Volume: These three variables are numbers that can only be revealed at the end of each trading day, when the value for Close is also revealed. In another word, there's no way for us to know High, Low or Volume ahead of knowing Close. Therefore, it doesn't make sense to include any of these as covariates in the model to predict Close.
-3. Adj.Close: The dataset we downloaded doesn't include a data dictionary about what adjustment is made to Close, so we weren't able to use it.
+Among all variables available in the dataset, we only focused on two variables `Date` and `Close`. Reasons why we didn't use other variables are as follows:
+1. `Open`: The correlation between variables `Open` and `Close` is almost one. This result intuitively makes sense because the average maginitude of daily stock price fluctuation is minimal compared with stock price itself. However, since `Open` and `Close` are almost perfectly correlated, we thought that using `Open` as the predictor for `Close` will not help us understand the research question that we're interested. Therefore, we didn't include `Open` in our analysis.
+2. `High` & `Low` & `Volume`: These three variables are numbers that can only be revealed at the end of each trading day, when the value for `Close` is also revealed. In another word, there's no way for us to know `High`, `Low` or `Volume` ahead of knowing `Close`. Therefore, it doesn't make sense to include any of these as covariates in the model to predict `Close`.
+3. `Adj. Close`: The dataset we downloaded doesn't include a data dictionary about what adjustment is made to `Close`, so we weren't able to use it.
 
 ```{r message=FALSE}
-df = df %>% mutate(diff = Close - Open) %>% filter(Date > as.Date("08/05/2012", format = "%d/%m/%Y"))
-
 ggplot(data = df, aes(x = Stock, y = Close)) +
   geom_boxplot() +
   ggtitle("Different Close Price Distribution of Different Stocks")
@@ -76,46 +79,9 @@ p4 = ggplot(data = df %>% filter(Stock == "Facebook") %>% arrange(Date), aes(x =
   geom_line() +
   ggtitle("Stock Close Price of Facebook")
 grid.arrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
-
-p1 = ggplot(data = df %>% filter(Stock == "Amazon") %>% arrange(Date), aes(x = Date, y = Open)) +
-  geom_line() +
-  ggtitle("Stock Open Price of Amazon")
-p2 = ggplot(data = df %>% filter(Stock == "Apple") %>% arrange(Date), aes(x = Date, y = Open)) +
-  geom_line() +
-  ggtitle("Stock Open Price of Apple")
-p3 = ggplot(data = df %>% filter(Stock == "Google") %>% arrange(Date), aes(x = Date, y = Open)) +
-  geom_line() +
-  ggtitle("Stock Open Price of Google")
-p4 = ggplot(data = df %>% filter(Stock == "Facebook") %>% arrange(Date), aes(x = Date, y = Open)) +
-  geom_line() +
-  ggtitle("Stock Open Price of Facebook")
-grid.arrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
-
-p1 = ggplot(data = df %>% filter(Stock == "Amazon") %>% arrange(Date), aes(x = Date, y = diff)) +
-  geom_line() +
-  ggtitle("Stock Price Daily Change of Amazon")
-p2 = ggplot(data = df %>% filter(Stock == "Apple") %>% arrange(Date), aes(x = Date, y = diff)) +
-  geom_line() +
-  ggtitle("Stock Price Daily Change of Apple")
-p3 = ggplot(data = df %>% filter(Stock == "Google") %>% arrange(Date), aes(x = Date, y = diff)) +
-  geom_line() +
-  ggtitle("Stock Price Daily Change of Google")
-p4 = ggplot(data = df %>% filter(Stock == "Facebook") %>% arrange(Date), aes(x = Date, y = diff)) +
-  geom_line() +
-  ggtitle("Stock Price Daily Change of Facebook")
-grid.arrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
-
-ggplot(data = cor(df %>% select(Close, Open, Volume, diff, High, Low)) %>% reshape2::melt(), aes(x=Var1, y=Var2, fill=value)) + 
-  geom_tile() +
-  ggtitle("Correltion matrix")
-
-naive.lm = lm(data = df, formula = Close ~ as.factor(Stock) + Date)
-naive.lm %>% summary()
-plot(shuffle(naive.lm$residuals), main = "Naive Residual Plot", ylab = "Residual")
-
-df = df %>% mutate(naive.pred = naive.lm$fitted.values)
-rmse(df$Close, df$naive.pred)
 ```
+
+These four companies went to public at very different times, so date ranges for each company in this dataset are very different. From the boxplot, we can see that Amazon, Apple and Google's `Close` are skewed while Facebook's `Close` price is not as skewed as that of the other three companies. From line plots, we can see that before 2005, Amazon and Apple's `Close` are horizontal lines, meaning that there weren't many changes. However, starting in 2005, all four companies experienced dramatic growth in their `Close`. This observation makes sense because of the Internet's boom. To better compare all four companies' close stock price, we decided to align date ranges for them by taking a subset of observations with a date after 2012-08-05 and build models with the subset.
 
 ## Method 1: Simple Linear Models
 
@@ -146,8 +112,6 @@ summary(google.lm)
 
 ## Method 2: ARIMA Time Series Models
 
-
-
 $$
 \begin{aligned}
 Close_t &= ARIMA_{(p, q, d) \times (P, Q, D)_s}(Close_{t-1, \cdots}) + \beta_s
@@ -155,20 +119,17 @@ Close_t &= ARIMA_{(p, q, d) \times (P, Q, D)_s}(Close_{t-1, \cdots}) + \beta_s
 $$
 
 ```{r}
-amazon.stock = df %>% filter(Stock == "Amazon") %>% arrange(Date)
-ggtsdisplay(amazon.stock %>% select(Close), main = "Difference of Price")
+amazon.ts = auto.arima(amazon.stock %>% select(Close), seasonal = TRUE)
+amazon.ts %>% summary()
+ggtsdisplay(amazon.ts$residuals, main = "ARIMA(5,2,0)")
 
-ts.model = auto.arima(amazon.stock %>% select(Close), seasonal = TRUE)
-ggtsdisplay(ts.model$residuals, main = "Arima(2,2,0)")
-ts.model %>% summary()
-
-amazon.stock = amazon.stock %>% mutate(ts.residuals = ts.model$residuals)
+amazon.stock = amazon.stock %>% mutate(ts.residuals = amazon.ts$residuals)
 
 res.lm.model = lm(data = amazon.stock, formula = ts.residuals ~ 1)
 res.lm.model %>% summary()
 
 amazon.stock = amazon.stock %>% 
-  mutate(ts.pred = ts.model$fitted + res.lm.model$fitted.values)
+  mutate(ts.pred = amazon.ts$fitted + res.lm.model$fitted.values)
 amazon.stock$residuals = c(amazon.stock$Close - amazon.stock$ts.pred)
 
 ggplot(data = amazon.stock, aes(x = Date)) +
@@ -176,29 +137,26 @@ ggplot(data = amazon.stock, aes(x = Date)) +
   geom_line(aes(y = ts.pred, color = "blue")) +
   xlab("time") +
   ylab("Close Price of Amazon Stock") +
-  ggtitle("ARIMA(2,2,0)")
+  ggtitle("ARIMA(5,2,0)")
 
 rmse(amazon.stock$Close, amazon.stock$naive.pred)
 rmse(amazon.stock$Close, amazon.stock$ts.pred)
-forecast(ts.model, 30) %>% plot(xlim=c(1250, 1520))
+forecast(amazon.ts, 30) %>% plot(xlim=c(1250, 1520))
 plot(amazon.stock$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
 ```
 
 ```{r}
-apple.stock = df %>% filter(Stock == "Apple") %>% arrange(Date)
-ggtsdisplay(apple.stock %>% select(Close), main = "Difference Price")
+apple.ts = auto.arima(apple.stock %>% select(Close), seasonal = TRUE)
+apple.ts %>% summary()
+ggtsdisplay(apple.ts$residuals, main = "ARIMA(2,1,2)")
 
-ts.model = auto.arima(apple.stock %>% select(Close), seasonal = TRUE)
-ggtsdisplay(ts.model$residuals, main = "Arima(2,1,2)")
-ts.model %>% summary()
-
-apple.stock = apple.stock %>% mutate(ts.residuals = ts.model$residuals)
+apple.stock = apple.stock %>% mutate(ts.residuals = apple.ts$residuals)
 
 res.lm.model = lm(data = apple.stock, formula = ts.residuals ~ 1)
 res.lm.model %>% summary()
 
 apple.stock = apple.stock %>% 
-  mutate(ts.pred = ts.model$fitted + res.lm.model$fitted.values)
+  mutate(ts.pred = apple.ts$fitted + res.lm.model$fitted.values)
 apple.stock$residuals = c(apple.stock$Close - apple.stock$ts.pred)
 
 ggplot(data = apple.stock, aes(x = Date)) +
@@ -210,25 +168,49 @@ ggplot(data = apple.stock, aes(x = Date)) +
 
 rmse(apple.stock$Close, apple.stock$naive.pred)
 rmse(apple.stock$Close, apple.stock$ts.pred)
-forecast(ts.model, 30) %>% plot(xlim=c(1250, 1520))
-plot(apple.stock$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
+forecast(apple.ts, 30) %>% plot(xlim=c(1250, 1520))
+plot(apple.ts$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
 ```
 
 ```{r}
-google.stock = df %>% filter(Stock == "Google") %>% arrange(Date)
-ggtsdisplay(google.stock %>% select(Close), main = "Difference of Price")
+facebook.ts = auto.arima(facebook.stock %>% select(Close), seasonal = TRUE)
+facebook.ts %>% summary()
+ggtsdisplay(facebook.ts$residuals, main = "ARIMA(2,1,2)")
 
-ts.model = auto.arima(google.stock %>% select(Close), seasonal = TRUE)
-ggtsdisplay(ts.model$residuals, main = "Arima(1,1,1)")
-ts.model %>% summary()
+facebook.stock = facebook.stock %>% mutate(ts.residuals = facebook.ts$residuals)
 
-google.stock = google.stock %>% mutate(ts.residuals = ts.model$residuals)
+res.lm.model = lm(data = facebook.stock, formula = ts.residuals ~ 1)
+res.lm.model %>% summary()
+
+facebook.stock = facebook.stock %>% 
+  mutate(ts.pred = facebook.ts$fitted + res.lm.model$fitted.values)
+facebook.stock$residuals = c(facebook.stock$Close - facebook.stock$ts.pred)
+
+ggplot(data = facebook.stock, aes(x = Date)) +
+  geom_line(aes(y = Close, color = "red")) +
+  geom_line(aes(y = ts.pred, color = "blue")) +
+  xlab("time") +
+  ylab("Close Price of Facebook Stock") +
+  ggtitle("ARIMA(2,1,2)")
+
+rmse(facebook.stock$Close, facebook.stock$naive.pred)
+rmse(facebook.stock$Close, facebook.stock$ts.pred)
+forecast(facebook.ts, 30) %>% plot(xlim=c(1250, 1520))
+plot(facebook.ts$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
+```
+
+```{r}
+google.ts = auto.arima(google.stock %>% select(Close), seasonal = TRUE)
+google.ts %>% summary()
+ggtsdisplay(google.ts$residuals, main = "ARIMA(1,1,1)")
+
+google.stock = google.stock %>% mutate(ts.residuals = google.ts$residuals)
 
 res.lm.model = lm(data = google.stock, formula = ts.residuals ~ 1)
 res.lm.model %>% summary()
 
 google.stock = google.stock %>% 
-  mutate(ts.pred = ts.model$fitted + res.lm.model$fitted.values)
+  mutate(ts.pred = google.ts$fitted + res.lm.model$fitted.values)
 google.stock$residuals = c(google.stock$Close - google.stock$ts.pred)
 
 ggplot(data = google.stock, aes(x = Date)) +
@@ -240,39 +222,12 @@ ggplot(data = google.stock, aes(x = Date)) +
 
 rmse(google.stock$Close, google.stock$naive.pred)
 rmse(google.stock$Close, google.stock$ts.pred)
-forecast(ts.model, 30) %>% plot(xlim=c(1250, 1520))
-plot(google.stock$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
+forecast(google.ts, 30) %>% plot(xlim=c(1250, 1520))
+plot(google.ts$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
 ```
 
-```{r}
-facebook.stock = df %>% filter(Stock == "Facebook") %>% arrange(Date)
-ggtsdisplay(facebook.stock %>% select(Close), main = "Difference of Price")
 
-ts.model = auto.arima(facebook.stock %>% select(Close), seasonal = TRUE)
-ggtsdisplay(ts.model$residuals, main = "Arima(2,1,2)")
-ts.model %>% summary()
-
-facebook.stock = facebook.stock %>% mutate(ts.residuals = ts.model$residuals)
-
-res.lm.model = lm(data = facebook.stock, formula = ts.residuals ~ 1)
-res.lm.model %>% summary()
-
-facebook.stock = facebook.stock %>% 
-  mutate(ts.pred = ts.model$fitted + res.lm.model$fitted.values)
-facebook.stock$residuals = c(facebook.stock$Close - facebook.stock$ts.pred)
-
-ggplot(data = facebook.stock, aes(x = Date)) +
-  geom_line(aes(y = Close, color = "red")) +
-  geom_line(aes(y = ts.pred, color = "blue")) +
-  xlab("time") +
-  ylab("Close Price of Apple Stock") +
-  ggtitle("ARIMA(2,1,2)")
-
-rmse(facebook.stock$Close, facebook.stock$naive.pred)
-rmse(facebook.stock$Close, facebook.stock$ts.pred)
-forecast(ts.model, 30) %>% plot(xlim=c(1250, 1520))
-plot(facebook.stock$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
-```
+## Method 3: Gaussian Process
 
 ## Conclusion
 
