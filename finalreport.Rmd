@@ -27,7 +27,7 @@ df$Adj.Close = as.numeric(as.character(df$Adj.Close))
 df$Volume = as.numeric(as.character(df$Volume))
 df$Date = as.Date(df$Date, format = "%d/%m/%Y")
 df = df[complete.cases(df), ]
-df = df %>% mutate(diff = Close - Open)
+df = df %>% mutate(diff = Close - Open) %>% filter(Date > as.Date("08/05/2012", format = "%d/%m/%Y"))
 
 rmse = function(pred, truth){
   sqrt(mean((pred - truth)^2))
@@ -110,7 +110,7 @@ $$
 
 ```{r}
 amazon.stock = df %>% filter(Stock == "Amazon") %>% arrange(Date)
-ggtsdisplay(amazon.stock %>% select(diff), main = "Close Price")
+ggtsdisplay(amazon.stock %>% select(diff), main = "Difference of Price")
 
 ts.model = auto.arima(amazon.stock %>% select(diff), seasonal = TRUE)
 ggtsdisplay(ts.model$residuals, main = "Arima(3, 0, 4)")
@@ -134,12 +134,12 @@ ggplot(data = amazon.stock, aes(x = Date)) +
 
 rmse(amazon.stock$diff, amazon.stock$naive.pred)
 rmse(amazon.stock$diff, amazon.stock$ts.pred)
-forecast(ts.model, 30) %>% plot(xlim=c(5200, 5300))
+forecast(ts.model, 30) %>% plot(xlim=c(1450, 1520))
 ```
 
 ```{r}
 apple.stock = df %>% filter(Stock == "Apple") %>% arrange(Date)
-ggtsdisplay(apple.stock %>% select(diff), main = "Close Price")
+ggtsdisplay(apple.stock %>% select(diff), main = "Difference Price")
 
 ts.model = auto.arima(apple.stock %>% select(diff), seasonal = TRUE)
 ggtsdisplay(ts.model$residuals, main = "Arima(3, 0, 2)")
@@ -163,12 +163,12 @@ ggplot(data = apple.stock, aes(x = Date)) +
 
 rmse(apple.stock$diff, apple.stock$naive.pred)
 rmse(apple.stock$diff, apple.stock$ts.pred)
-forecast(ts.model, 30) %>% plot(xlim=c(9350, 9450))
+forecast(ts.model, 30) %>% plot(xlim=c(1450, 1520))
 ```
 
 ```{r}
 google.stock = df %>% filter(Stock == "Google") %>% arrange(Date)
-ggtsdisplay(google.stock %>% select(diff), main = "Close Price")
+ggtsdisplay(google.stock %>% select(diff), main = "Difference of Price")
 
 ts.model = auto.arima(google.stock %>% select(diff), seasonal = TRUE)
 ggtsdisplay(ts.model$residuals, main = "Arima(3, 0, 2)")
@@ -192,12 +192,12 @@ ggplot(data = google.stock, aes(x = Date)) +
 
 rmse(google.stock$diff, google.stock$naive.pred)
 rmse(google.stock$diff, google.stock$ts.pred)
-forecast(ts.model, 30) %>% plot(xlim=c(3400, 3470))
+forecast(ts.model, 30) %>% plot(xlim=c(1450, 1520))
 ```
 
 ```{r}
 facebook.stock = df %>% filter(Stock == "Facebook") %>% arrange(Date)
-ggtsdisplay(facebook.stock %>% select(diff), main = "Close Price")
+ggtsdisplay(facebook.stock %>% select(diff), main = "Difference of Price")
 
 ts.model = auto.arima(facebook.stock %>% select(diff), seasonal = TRUE)
 ggtsdisplay(ts.model$residuals, main = "Arima(2, 0, 2)")
