@@ -27,7 +27,6 @@ df$Adj.Close = as.numeric(as.character(df$Adj.Close))
 df$Volume = as.numeric(as.character(df$Volume))
 df$Date = as.Date(df$Date, format = "%d/%m/%Y")
 df = df[complete.cases(df), ]
-df = df %>% mutate(diff = Close - Open) %>% filter(Date > as.Date("08/05/2012", format = "%d/%m/%Y"))
 
 rmse = function(pred, truth){
   sqrt(mean((pred - truth)^2))
@@ -45,9 +44,20 @@ We will first look at some Explanatory Data Analyses for all four companies, the
 
 Lastly, we wish to come to a conclusion for our questions of interest: what are the factors that can potentially affect the closing prices of stocks? Is there any temporal dependency in the closing prices? Are there differences among different companies or they share similar trends and structures in their stocks?  We would also have a discussion on the adequacy, potential problems with the models and provide suggestions for developing this project.
 
-## EDA
+## Exploratory Data Analysis
+
 ```{r message=FALSE}
 summary(df)
+cor(df$Open, df$Close)
+```
+
+Among all variables available in the dataset, we only focused on two variables Date and Close. Reasons why we didn't use other variables are as follows:
+1. Open: The correlation between variables Open and Close is almost one. This result intuitively makes sense because the average maginitude of daily stock price fluctuation is minimal compared with stock price itself. However, since Open and Close are almost perfectly correlated, we thought that using Open as the predictor for Close will not help us understand the research question that we're interested. Therefore, we didn't include Open in our analysis.
+2. High & Low & Volume: These three variables are numbers that can only be revealed at the end of each trading day, when the value for Close is also revealed. In another word, there's no way for us to know High, Low or Volume ahead of knowing Close. Therefore, it doesn't make sense to include any of these as covariates in the model to predict Close.
+3. Adj.Close: The dataset we downloaded doesn't include a data dictionary about what adjustment is made to Close, so we weren't able to use it.
+
+```{r message=FALSE}
+df = df %>% mutate(diff = Close - Open) %>% filter(Date > as.Date("08/05/2012", format = "%d/%m/%Y"))
 
 ggplot(data = df, aes(x = Stock, y = Close)) +
   geom_boxplot() +
@@ -107,7 +117,37 @@ df = df %>% mutate(naive.pred = naive.lm$fitted.values)
 rmse(df$Close, df$naive.pred)
 ```
 
-## Time Series Analysis and Models
+## Method 1: Simple Linear Models
+
+The first method is fitting a simple linear model for each individual company. We simply used the date to predict the closing stock prices of that day. Since each day would have price data for all four companies, we would have to build four individual time series models. For the sake of comparing and evaluating model performances, we fit four different linear models as well, instead of using `Stock` as one of the predictors.
+
+```{r}
+#Apple
+apple.stock = df %>% filter(Stock == "Apple" & Date>="2012-08-05" & Date<="2018-12-31")
+apple.lm = lm(Close ~ Date, data = apple.stock)
+summary(apple.lm)
+
+#Amazon
+amazon.stock = df %>% filter(Stock == "Amazon" & Date>="2012-08-05" & Date<="2018-12-31")
+amazon.lm = lm(Close ~ Date, data = amazon.stock)
+summary(amazon.lm)
+
+#Facebook
+facebook.stock = df %>% filter(Stock == "Facebook" & Date>="2012-08-05" & Date<="2018-12-31")
+facebook.lm = lm(Close ~ Date, data = facebook.stock)
+summary(facebook.lm)
+
+#Google
+google.stock = df %>% filter(Stock == "Google" & Date>="2012-08-05" & Date<="2018-12-31")
+google.lm = lm(Close ~ Date, data = google.stock)
+summary(google.lm)
+```
+
+
+## Method 2: ARIMA Time Series Models
+
+
+
 $$
 \begin{aligned}
 Close_t &= ARIMA_{(p, q, d) \times (P, Q, D)_s}(Close_{t-1, \cdots}) + \beta_s
