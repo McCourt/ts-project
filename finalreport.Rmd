@@ -234,9 +234,6 @@ plot(google.ts$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
 ```{r echo=FALSE, fig.height=4.5}
 source("util.R")
 apple_emp_cloud = apple.stock %>% emp_semivariogram(Close,Date)
-#apple_emp_cloud %>%
-#  ggplot(aes(x=h, y=gamma)) +
-#  geom_point(size = 1)
 
 apple_emp = rbind(
   apple.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
@@ -254,9 +251,6 @@ apple_emp %>%
 
 ```{r echo=FALSE, fig.height=4.5}
 amazon_emp_cloud = amazon.stock %>% emp_semivariogram(Close,Date)
-#amazon_emp_cloud %>%
-#  ggplot(aes(x=h, y=gamma)) +
-#  geom_point(size = 1)
 
 amazon_emp = rbind(
   amazon.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
@@ -274,9 +268,6 @@ amazon_emp %>%
 
 ```{r echo=FALSE, fig.height=4.5}
 facebook_emp_cloud = facebook.stock %>% emp_semivariogram(Close,Date)
-facebook_emp_cloud %>%
-  ggplot(aes(x=h, y=gamma)) +
-  geom_point(size = 1)
 
 facebook_emp = rbind(
   facebook.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
@@ -294,9 +285,6 @@ facebook_emp %>%
 
 ```{r echo=FALSE, fig.height=4.5}
 google_emp_cloud = google.stock %>% emp_semivariogram(Close,Date)
-google_emp_cloud %>%
-  ggplot(aes(x=h, y=gamma)) +
-  geom_point(size = 1)
 
 google_emp = rbind(
   google.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
