@@ -57,7 +57,7 @@ cor(df$Open, df$Close)
 ```
 
 Among all variables available in the dataset, we only focused on two variables `Date` and `Close`. Reasons why we didn't use other variables are as follows:
-1. `Open`: The correlation between variables `Open` and `Close` is almost one. This result intuitively makes sense because the average maginitude of daily stock price fluctuation is minimal compared with stock price itself. However, since `Open` and `Close` are almost perfectly correlated, we thought that using `Open` as the predictor for `Close` will not help us understand the research question that we're interested. Therefore, we didn't include `Open` in our analysis.
+1. `Open`: The correlation between variables `Open` and `Close` is almost one. This result intuitively makes sense because the average magnitude of daily stock price fluctuation is minimal compared with stock price itself. However, since `Open` and `Close` are almost perfectly correlated, we thought that using `Open` as the predictor for `Close` will not help us understand the research question that we're interested. Therefore, we didn't include `Open` in our analysis.
 2. `High` & `Low` & `Volume`: These three variables are numbers that can only be revealed at the end of each trading day, when the value for `Close` is also revealed. In another word, there's no way for us to know `High`, `Low` or `Volume` ahead of knowing `Close`. Therefore, it doesn't make sense to include any of these as covariates in the model to predict `Close`.
 3. `Adj. Close`: The dataset we downloaded doesn't include a data dictionary about what adjustment is made to `Close`, so we weren't able to use it.
 
@@ -206,6 +206,7 @@ ggtsdisplay(google.ts$residuals, main = "ARIMA(1,1,1)")
 
 google.stock = google.stock %>% mutate(ts.residuals = google.ts$residuals)
 
+
 res.lm.model = lm(data = google.stock, formula = ts.residuals ~ 1)
 res.lm.model %>% summary()
 
@@ -228,6 +229,89 @@ plot(google.ts$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
 
 
 ## Method 3: Gaussian Process
+
+###Empirical Semivariogram
+```{r echo=FALSE, fig.height=4.5}
+source("util.R")
+apple_emp_cloud = apple.stock %>% emp_semivariogram(Close,Date)
+#apple_emp_cloud %>%
+#  ggplot(aes(x=h, y=gamma)) +
+#  geom_point(size = 1)
+
+apple_emp = rbind(
+  apple.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
+  apple.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
+  apple.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
+  apple.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
+)
+
+apple_emp %>%
+  ggplot(aes(x=h, y=gamma)) +
+  geom_point(size = 1) +
+  ggtitle("Empirical Semivariogram of Apple (binned)")+
+  facet_wrap(~binwidth, nrow=2)
+```
+
+```{r echo=FALSE, fig.height=4.5}
+amazon_emp_cloud = amazon.stock %>% emp_semivariogram(Close,Date)
+#amazon_emp_cloud %>%
+#  ggplot(aes(x=h, y=gamma)) +
+#  geom_point(size = 1)
+
+amazon_emp = rbind(
+  amazon.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
+  amazon.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
+  amazon.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
+  amazon.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
+)
+
+amazon_emp %>%
+  ggplot(aes(x=h, y=gamma)) +
+  geom_point(size = 1) +
+  ggtitle("Empirical Semivariogram of Amazon (binned)")+
+  facet_wrap(~binwidth, nrow=2)
+```
+
+```{r echo=FALSE, fig.height=4.5}
+facebook_emp_cloud = facebook.stock %>% emp_semivariogram(Close,Date)
+facebook_emp_cloud %>%
+  ggplot(aes(x=h, y=gamma)) +
+  geom_point(size = 1)
+
+facebook_emp = rbind(
+  facebook.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
+  facebook.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
+  facebook.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
+  facebook.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
+)
+
+facebook_emp %>%
+  ggplot(aes(x=h, y=gamma)) +
+  geom_point(size = 1) +
+  ggtitle("Empirical Semivariogram of Facebook (binned)")
+  facet_wrap(~binwidth, nrow=2)
+```
+
+```{r echo=FALSE, fig.height=4.5}
+google_emp_cloud = google.stock %>% emp_semivariogram(Close,Date)
+google_emp_cloud %>%
+  ggplot(aes(x=h, y=gamma)) +
+  geom_point(size = 1)
+
+google_emp = rbind(
+  google.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
+  google.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
+  google.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
+  google.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
+)
+
+google_emp %>%
+  ggplot(aes(x=h, y=gamma)) +
+  geom_point(size = 1) +
+  ggtitle("Empirical Semivariogram of Apple (binned)")
+  facet_wrap(~binwidth, nrow=2)
+```
+
 
 ## Conclusion
 
