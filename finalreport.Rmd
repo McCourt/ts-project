@@ -28,6 +28,9 @@ df$Volume = as.numeric(as.character(df$Volume))
 df$Date = as.Date(df$Date, format = "%d/%m/%Y")
 df = df[complete.cases(df), ]
 
+#create a column `Diff` that represents the difference between close price and open price
+df$Diff = df$Close - df$Open
+
 rmse = function(pred, truth){
   sqrt(mean((pred - truth)^2))
 }
@@ -85,27 +88,27 @@ These four companies went to public at very different times, so date ranges for 
 
 ## Method 1: Simple Linear Models
 
-The first method is fitting a simple linear model for each individual company. We simply used the date to predict the closing stock prices of that day. Since each day would have price data for all four companies, we would have to build four individual time series models. For the sake of comparing and evaluating model performances, we fit four different linear models as well, instead of using `Stock` as one of the predictors.
+The first method is fitting a simple linear model for each individual company. We used the data to predict the difference between the close price and the open price on each day. Since each day would have price data for all four companies, we would have to build four individual time series models. For the sake of comparing and evaluating model performances, we fit four different linear models as well, instead of using `Stock` as one of the predictors.
 
 ```{r}
 #Apple
 apple.stock = df %>% filter(Stock == "Apple" & Date>="2012-08-05" & Date<="2018-12-31")
-apple.lm = lm(Close ~ Date, data = apple.stock)
+apple.lm = lm(Diff ~ Date, data = apple.stock)
 summary(apple.lm)
 
 #Amazon
 amazon.stock = df %>% filter(Stock == "Amazon" & Date>="2012-08-05" & Date<="2018-12-31")
-amazon.lm = lm(Close ~ Date, data = amazon.stock)
+amazon.lm = lm(Diff ~ Date, data = amazon.stock)
 summary(amazon.lm)
 
 #Facebook
 facebook.stock = df %>% filter(Stock == "Facebook" & Date>="2012-08-05" & Date<="2018-12-31")
-facebook.lm = lm(Close ~ Date, data = facebook.stock)
+facebook.lm = lm(Diff ~ Date, data = facebook.stock)
 summary(facebook.lm)
 
 #Google
 google.stock = df %>% filter(Stock == "Google" & Date>="2012-08-05" & Date<="2018-12-31")
-google.lm = lm(Close ~ Date, data = google.stock)
+google.lm = lm(Diff ~ Date, data = google.stock)
 summary(google.lm)
 ```
 
@@ -119,63 +122,62 @@ Close_t &= ARIMA_{(p, q, d) \times (P, Q, D)_s}(Close_{t-1, \cdots}) + \beta_s
 $$
 
 ```{r}
-amazon.ts = auto.arima(amazon.stock %>% select(Close), seasonal = TRUE)
+amazon.ts = auto.arima(amazon.stock %>% select(Diff), seasonal = TRUE)
 amazon.ts %>% summary()
-ggtsdisplay(amazon.ts$residuals, main = "ARIMA(5,2,0)")
+ggtsdisplay(amazon.ts$residuals, main = "ARIMA(3,0,3)")
 
-amazon.stock = amazon.stock %>% mutate(ts.residuals = amazon.ts$residuals)
+amazon.stock$ts.residuals = amazon.ts$residuals
 
 res.lm.model = lm(data = amazon.stock, formula = ts.residuals ~ 1)
 res.lm.model %>% summary()
 
-amazon.stock = amazon.stock %>% 
-  mutate(ts.pred = amazon.ts$fitted + res.lm.model$fitted.values)
-amazon.stock$residuals = c(amazon.stock$Close - amazon.stock$ts.pred)
+amazon.stock$ts.pred = amazon.ts$fitted + res.lm.model$fitted.values
+amazon.stock$residuals = c(amazon.stock$Diff - amazon.stock$ts.pred)
 
 ggplot(data = amazon.stock, aes(x = Date)) +
-  geom_line(aes(y = Close, color = "red")) +
+  geom_line(aes(y = Diff, color = "red")) +
   geom_line(aes(y = ts.pred, color = "blue")) +
   xlab("time") +
-  ylab("Close Price of Amazon Stock") +
-  ggtitle("ARIMA(5,2,0)")
+  ylab("Difference in Close Price and Open Price of Amazon Stock") +
+  ggtitle("ARIMA(3,0,3)")
 
-rmse(amazon.stock$Close, amazon.stock$naive.pred)
-rmse(amazon.stock$Close, amazon.stock$ts.pred)
+rmse(amazon.stock$Diff, amazon.stock$naive.pred)
+rmse(amazon.stock$Diff, amazon.stock$ts.pred)
 forecast(amazon.ts, 30) %>% plot(xlim=c(1250, 1520))
 plot(amazon.stock$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
 ```
 
-```{r}
-apple.ts = auto.arima(apple.stock %>% select(Close), seasonal = TRUE)
-apple.ts %>% summary()
-ggtsdisplay(apple.ts$residuals, main = "ARIMA(2,1,2)")
 
-apple.stock = apple.stock %>% mutate(ts.residuals = apple.ts$residuals)
+```{r}
+apple.ts = auto.arima(apple.stock %>% select(Diff), seasonal = TRUE)
+apple.ts %>% summary()
+ggtsdisplay(apple.ts$residuals, main = "ARIMA(1,1,0)")
+
+apple.stock$ts.residuals = apple.ts$residuals
 
 res.lm.model = lm(data = apple.stock, formula = ts.residuals ~ 1)
 res.lm.model %>% summary()
 
-apple.stock = apple.stock %>% 
-  mutate(ts.pred = apple.ts$fitted + res.lm.model$fitted.values)
-apple.stock$residuals = c(apple.stock$Close - apple.stock$ts.pred)
+apple.stock$ts.pred = apple.ts$fitted + res.lm.model$fitted.values
+apple.stock$residuals = apple.stock$Diff - apple.stock$ts.pred
 
 ggplot(data = apple.stock, aes(x = Date)) +
-  geom_line(aes(y = Close, color = "red")) +
+  geom_line(aes(y = Diff, color = "red")) +
   geom_line(aes(y = ts.pred, color = "blue")) +
   xlab("time") +
-  ylab("Close Price of Apple Stock") +
-  ggtitle("ARIMA(2,1,2)")
+  ylab("Difference in Close Price and Open Price of Apple Stock") +
+  ggtitle("ARIMA(1,1,0)")
 
-rmse(apple.stock$Close, apple.stock$naive.pred)
-rmse(apple.stock$Close, apple.stock$ts.pred)
+rmse(apple.stock$Diff, apple.stock$naive.pred)
+rmse(apple.stock$Diff, apple.stock$ts.pred)
 forecast(apple.ts, 30) %>% plot(xlim=c(1250, 1520))
 plot(apple.ts$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
 ```
 
 ```{r}
-facebook.ts = auto.arima(facebook.stock %>% select(Close), seasonal = TRUE)
+facebook.ts = auto.arima(facebook.stock %>% select(Diff), seasonal = TRUE)
 facebook.ts %>% summary()
-ggtsdisplay(facebook.ts$residuals, main = "ARIMA(2,1,2)")
+ggtsdisplay(facebook.ts$residuals, main = "ARIMA(2,0,2)")
 
 facebook.stock = facebook.stock %>% mutate(ts.residuals = facebook.ts$residuals)
 
@@ -184,25 +186,25 @@ res.lm.model %>% summary()
 
 facebook.stock = facebook.stock %>% 
   mutate(ts.pred = facebook.ts$fitted + res.lm.model$fitted.values)
-facebook.stock$residuals = c(facebook.stock$Close - facebook.stock$ts.pred)
+facebook.stock$residuals = c(facebook.stock$Diff - facebook.stock$ts.pred)
 
 ggplot(data = facebook.stock, aes(x = Date)) +
-  geom_line(aes(y = Close, color = "red")) +
+  geom_line(aes(y = Diff, color = "red")) +
   geom_line(aes(y = ts.pred, color = "blue")) +
   xlab("time") +
-  ylab("Close Price of Facebook Stock") +
-  ggtitle("ARIMA(2,1,2)")
+  ylab("Difference in Close Price and Open Price of Facebook Stock") +
+  ggtitle("ARIMA(2,0,2)")
 
-rmse(facebook.stock$Close, facebook.stock$naive.pred)
-rmse(facebook.stock$Close, facebook.stock$ts.pred)
+rmse(facebook.stock$Diff, facebook.stock$naive.pred)
+rmse(facebook.stock$Diff, facebook.stock$ts.pred)
 forecast(facebook.ts, 30) %>% plot(xlim=c(1250, 1520))
 plot(facebook.ts$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
 ```
 
 ```{r}
-google.ts = auto.arima(google.stock %>% select(Close), seasonal = TRUE)
+google.ts = auto.arima(google.stock %>% select(Diff), seasonal = TRUE)
 google.ts %>% summary()
-ggtsdisplay(google.ts$residuals, main = "ARIMA(1,1,1)")
+ggtsdisplay(google.ts$residuals, main = "ARIMA(3,0,3)")
 
 google.stock = google.stock %>% mutate(ts.residuals = google.ts$residuals)
 
@@ -212,17 +214,17 @@ res.lm.model %>% summary()
 
 google.stock = google.stock %>% 
   mutate(ts.pred = google.ts$fitted + res.lm.model$fitted.values)
-google.stock$residuals = c(google.stock$Close - google.stock$ts.pred)
+google.stock$residuals = c(google.stock$Diff - google.stock$ts.pred)
 
 ggplot(data = google.stock, aes(x = Date)) +
-  geom_line(aes(y = Close, color = "red")) +
+  geom_line(aes(y = Diff, color = "red")) +
   geom_line(aes(y = ts.pred, color = "blue")) +
   xlab("time") +
-  ylab("Close Price of Google Stock") +
-  ggtitle("ARIMA(1,1,1)")
+  ylab("Difference in Close Price and Open Price of Google Stock") +
+  ggtitle("ARIMA(3,0,3)")
 
-rmse(google.stock$Close, google.stock$naive.pred)
-rmse(google.stock$Close, google.stock$ts.pred)
+rmse(google.stock$Diff, google.stock$naive.pred)
+rmse(google.stock$Diff, google.stock$ts.pred)
 forecast(google.ts, 30) %>% plot(xlim=c(1250, 1520))
 plot(google.ts$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
 ```
@@ -233,13 +235,13 @@ plot(google.ts$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
 ###Empirical Semivariogram
 ```{r echo=FALSE, fig.height=4.5}
 source("util.R")
-apple_emp_cloud = apple.stock %>% emp_semivariogram(Close,Date)
+apple_emp_cloud = apple.stock %>% emp_semivariogram(Diff,Date)
 
 apple_emp = rbind(
-  apple.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
-  apple.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
-  apple.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
-  apple.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
+  apple.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
+  apple.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
+  apple.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
+  apple.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
 )
 
 apple_emp %>%
@@ -250,13 +252,13 @@ apple_emp %>%
 ```
 
 ```{r echo=FALSE, fig.height=4.5}
-amazon_emp_cloud = amazon.stock %>% emp_semivariogram(Close,Date)
+amazon_emp_cloud = amazon.stock %>% emp_semivariogram(Diff,Date)
 
 amazon_emp = rbind(
-  amazon.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
-  amazon.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
-  amazon.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
-  amazon.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
+  amazon.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
+  amazon.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
+  amazon.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
+  amazon.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
 )
 
 amazon_emp %>%
@@ -267,13 +269,13 @@ amazon_emp %>%
 ```
 
 ```{r echo=FALSE, fig.height=4.5}
-facebook_emp_cloud = facebook.stock %>% emp_semivariogram(Close,Date)
+facebook_emp_cloud = facebook.stock %>% emp_semivariogram(Diff,Date)
 
 facebook_emp = rbind(
-  facebook.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
-  facebook.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
-  facebook.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
-  facebook.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
+  facebook.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
+  facebook.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
+  facebook.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
+  facebook.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
 )
 
 facebook_emp %>%
@@ -284,13 +286,13 @@ facebook_emp %>%
 ```
 
 ```{r echo=FALSE, fig.height=4.5}
-google_emp_cloud = google.stock %>% emp_semivariogram(Close,Date)
+google_emp_cloud = google.stock %>% emp_semivariogram(Diff,Date)
 
 google_emp = rbind(
-  google.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
-  google.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
-  google.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
-  google.stock %>% emp_semivariogram(Close, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
+  google.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
+  google.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
+  google.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
+  google.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
 )
 
 google_emp %>%
