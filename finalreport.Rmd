@@ -302,6 +302,60 @@ google_emp %>%
   facet_wrap(~binwidth, nrow=2)
 ```
 
+###Gaussian Process Modeling
+```{r}
+gp_model_apple = "model{
+  y ~ dmnorm(mu, inverse(Sigma))
+
+  for (i in 1:N) {
+    mu[i] <- 0
+  }
+
+  for (i in 1:(N-1)) {
+    for (j in (i+1):N) {
+      Sigma[i,j] <- sigma2 * exp(- pow(l*d[i,j],2))
+      Sigma[j,i] <- Sigma[i,j]
+    }
+  }
+
+  for (k in 1:N) {
+    Sigma[k,k] <- sigma2 + 0.00001
+  }
+
+  sigma2   ~ dlnorm(0, 1.5)
+  l        ~ dt(0, 2.5, 1) T(0,) # Half-cauchy(0,2.5)
+}"
+
+
+m_apple = rjags::jags.model(
+    textConnection(gp_model_apple), 
+    data = list(
+      y = (apple.stock$Diff),
+      d = dist(apple.stock$Date) %>% as.matrix(),
+      N = length(apple.stock$Diff)
+    ),
+    quiet = TRUE
+  )
+
+  update(m, n.iter=5000)
+
+  apple_cov_coda = rjags::coda.samples(
+    m, variable.names=c("sigma2", "l"),
+    n.iter=10000, thin=10
+  )
+  saveRDS(apple_cov_coda, file="gp_apple_jags.rds")
+
+apple_gp = tidybayes::gather_samples(apple_cov_coda, sigma2, l)
+
+apple_gp %>%
+  slice(seq(1,n(),2)) %>%
+  ggplot(aes(x=.iteration, y=estimate, color=term)) +
+  geom_line() +
+  facet_grid(term~., scale="free_y")
+
+```
+
+
 
 ## Conclusion
 
