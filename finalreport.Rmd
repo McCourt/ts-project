@@ -35,6 +35,16 @@ rmse = function(pred, truth){
   sqrt(mean((pred - truth)^2))
 }
 
+
+
+#####New version
+new_df = read.csv("new_data.csv")
+new_df$Date = as.Date(new_df$Date, format = "%Y/%m/%d")
+new_df$Open = as.numeric(as.character(new_df$Open))
+new_df$fb_close = as.numeric(as.character(new_df$fb_close))
+new_df$google_close = as.numeric(as.character(new_df$google_close))
+new_df$amazon_close = as.numeric(as.character(new_df$amazon_close))
+new_df$apple_close = as.numeric(as.character(new_df$apple_close))
 ```
 
 ## Introduction
@@ -57,6 +67,12 @@ ggplot(data = cor(df %>% select(Close, Open, Volume, High, Low)) %>% reshape2::m
   ggtitle("Correltion matrix")
 
 cor(df$Open, df$Close)
+
+
+##new version
+ggplot(data = new_df %>% arrange(Date), aes(x = Date, y = fb_close)) +
+  geom_line() +
+  ggtitle("Stock Close Price of Facebook")
 ```
 
 Among all variables available in the dataset, we only focused on two variables `Date` and `Close`. Reasons why we didn't use other variables are as follows:
@@ -110,6 +126,14 @@ summary(facebook.lm)
 google.stock = df %>% filter(Stock == "Google" & Date>="2012-08-05" & Date<="2018-12-31")
 google.lm = lm(Diff ~ Date, data = google.stock)
 summary(google.lm)
+
+#FB new version
+fb_lm = lm(fb_close ~ Open, data = new_df)
+summary(fb_lm)
+new_df$fb_naive.pred = predict(fb_lm, data=new_df$Open)
+new_df$fb_naive.residual = new_df$fb_close - new_df$fb_naive.pred
+
+
 ```
 
 
@@ -199,6 +223,37 @@ rmse(facebook.stock$Diff, facebook.stock$naive.pred)
 rmse(facebook.stock$Diff, facebook.stock$ts.pred)
 forecast(facebook.ts, 30) %>% plot(xlim=c(1250, 1520))
 plot(facebook.ts$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
+
+
+
+###new version
+facebook.ts = auto.arima(new_df %>% select(fb_close), xreg = new_df$Open, seasonal = TRUE)
+facebook.ts %>% summary()
+ggtsdisplay(facebook.ts$residuals, main = "ARIMA(2,0,2)")
+# maybe add the 30 day trend?
+try = Arima(new_df %>% select(fb_close), xreg = new_df$Open, order = c(2, 1, 2),seasonal = list(order = c(0, 0, 1),period = 30))
+ggtsdisplay(try$residuals) #doesn't seem to change much
+new_df = new_df %>% mutate(fb.ts.residuals = facebook.ts$residuals)
+
+res.lm.model = lm(data = new_df, formula = fb.ts.residuals ~ 1)
+res.lm.model %>% summary()
+
+new_df = new_df %>% 
+  mutate(fb.ts.pred = facebook.ts$fitted + res.lm.model$fitted.values)
+new_df$arima_fb_residuals = c(new_df$fb_close - new_df$fb.ts.pred)
+
+ggplot(data = new_df, aes(x = Date)) +
+  geom_line(aes(y = fb_close, color = "red")) +
+  geom_line(aes(y = fb.ts.pred, color = "blue")) +
+  xlab("time") +
+  ylab("Difference in Close Price and Open Price of Facebook Stock") +
+  ggtitle("ARIMA(2,0,2)")
+
+rmse(new_df$fb_close, new_df$fb_naive.pred)
+rmse(new_df$fb_close, new_df$fb.ts.pred)
+#forecast(facebook.ts, 30) %>% plot(xlim=c(1250, 1520))
+plot(facebook.ts$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
+plot(try$residuals, ylab = "Residuals", main = "Residual Plot of ARIMA")
 ```
 
 ```{r}
@@ -344,6 +399,151 @@ google_emp %>%
   facet_wrap(~binwidth, nrow=2)
 ```
 
+
+```{r}
+source("util.R")
+facebook_subset = new_df[1291:1490, ]
+fb_emp_cloud = facebook_subset %>% emp_semivariogram(fb_naive.residual,Date)
+
+fb_emp = rbind(
+  facebook_subset %>% emp_semivariogram(fb_naive.residual, Date, bin=TRUE, binwidth=1)  %>% mutate(binwidth="binwidth=1"),
+  facebook_subset %>% emp_semivariogram(fb_naive.residual, Date, bin=TRUE, binwidth=5) %>% mutate(binwidth="binwidth=5"),
+  facebook_subset %>% emp_semivariogram(fb_naive.residual, Date, bin=TRUE, binwidth=10) %>% mutate(binwidth="binwidth=10"),
+  facebook_subset %>% emp_semivariogram(fb_naive.residual, Date, bin=TRUE, binwidth=15)   %>% mutate(binwidth="binwidth=15"),
+  facebook_subset %>% emp_semivariogram(fb_naive.residual, Date, bin=TRUE, binwidth=30)  %>% mutate(binwidth="binwidth=30")
+)
+
+fb_emp %>%
+  ggplot(aes(x=h, y=gamma)) +
+  geom_point(size = 1) +
+  ggtitle("Empirical Semivariogram of Facebook (binned)")+
+  facet_wrap(~binwidth, nrow=2)
+```
+
+```{r}
+gp_exp_model = "model{
+  y ~ dmnorm(mu, inverse(Sigma))
+
+  for (i in 1:N) {
+    mu[i] <- beta[1]+ beta[2] * x[i]
+  }
+  
+  for (i in 1:(N-1)) {
+    for (j in (i+1):N) {
+      Sigma[i,j] <- sigma2 * exp(- pow(l*d[i,j],2))
+      Sigma[j,i] <- Sigma[i,j]
+    }
+  }
+
+  for (k in 1:N) {
+    Sigma[k,k] <- sigma2 + sigma2_w
+  }
+
+  for (i in 1:2) {
+    beta[i] ~ dt(coef[i], 2.5, 1)
+  }
+  sigma2_w ~ dnorm(10, 15) T(0,)
+  sigma2   ~ dnorm(390, 400) T(0,)
+  l        ~ dnorm(0.005, 1) T(0,) 
+}"
+```
+
+```{r}
+if (file.exists("gp_jags.Rdata")) {
+  load(file="gp_jags.Rdata")
+} else {
+  m = rjags::jags.model(
+    textConnection(gp_exp_model), 
+    data = list(
+      y = facebook_subset$fb_close,
+      x = facebook_subset$Date,
+      d = dist(facebook_subset$Date) %>% as.matrix(),
+      N = nrow(facebook_subset),
+      coef = coef(fb_lm)
+    ),
+    quiet = TRUE
+  )
+
+  update(m, n.iter=10000)
+
+  exp_cov_coda = rjags::coda.samples(
+    m, variable.names=c("beta", "sigma2", "l", "sigma2_w"),
+    n.iter=10000, thin=10
+  )
+  save(exp_cov_coda, file="gp_jags.Rdata")
+}
+
+
+```
+```{r}
+betas = tidybayes::gather_draws(exp_cov_coda, beta[i]) %>%
+  ungroup() %>%
+  mutate(.variable = paste0(.variable, "[",i,"]")) %>%
+  select(-i)
+
+betas %>%
+  group_by(.variable) %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.iteration, y=.value, color=.variable)) +
+    geom_line() +
+    facet_grid(.variable~., scales = "free_y")
+
+params = tidybayes::gather_draws(exp_cov_coda, sigma2, l, sigma2_w)
+
+params %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.iteration, y=.value, color=.variable)) +
+    geom_line() +
+    facet_grid(.variable~., scales="free_y")
+
+params %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.value, fill=.variable)) +
+    geom_density() +
+    facet_wrap(~.variable, scales="free") +
+    guides(fill=FALSE)
+
+
+params %>%
+  slice(seq(1,n(),length.out=500)) %>% 
+  filter(.variable == "l") %>%
+  ggplot(aes(x=.value, fill=.variable)) +
+    geom_density() +
+    scale_x_log10() +
+    facet_wrap(~.variable, scales="free") +
+    guides(fill=FALSE)
+
+post = bind_rows(betas, params) %>%
+  group_by(.variable) %>%
+  summarize(
+    post_mean = mean(.value),
+    post_med  = median(.value),
+    post_lower = quantile(.value, probs = 0.025),
+    post_upper = quantile(.value, probs = 0.975)
+  )
+
+knitr::kable(post, digits = 5)
+
+l = post %>% filter(.variable == 'l') %>% pull(post_med)
+sigma2 = post %>% filter(.variable == 'sigma2') %>% pull(post_med)
+sigma2_w = post %>% filter(.variable == 'sigma2_w') %>% pull(post_med)
+beta0 = post %>% filter(.variable == 'beta[1]') %>% pull(post_med)
+beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
+new_df$bayes_resid = new_df$fb_close - beta0 - beta1 * new_df$Open
+new_df$fb_bayes_predict = beta0 + beta1 * new_df$Open
+d_fit = data_frame(h=seq(0, 300, length.out = 1000)) %>% mutate(gamma = sq_exp_sv(h, sigma2, l, sigma2_w))
+rmse(new_df$fb_close, new_df$fb_bayes_predict)
+##can't make the code below work
+rbind(
+  new_df %>% emp_semivariogram(bayes_resid, x, bin=TRUE, binwidth=10, range_max=180) %>% mutate(bw = "binwidth=10"),
+  new_df %>% emp_semivariogram(bayes_resid, x, bin=TRUE, binwidth=5, range_max=180) %>% mutate(bw = "binwidth=5")
+) %>%
+  ggplot(aes(x=h, y=gamma)) +
+    geom_point() +
+    ylim(0,NA) +
+    geom_line(data=d_fit, color='red') +
+    facet_wrap(~bw, ncol=2) 
+```
 
 ## Conclusion
 
