@@ -26,18 +26,19 @@ rmse = function(pred, truth){
 
 ## Introduction
 
-For this particular project, we are looking at the stock prices of four major tech companies: Apple, Facebook, Amazon and Google, from the years of, correspondingly, 1980, 2012, 1997 and 2004 to the year of 2018. With the data downloaded from Kaggle (*https://www.kaggle.com/stexo92/gafa-stock-prices*), we got access to the dates, opening prices, closing prices, stock volume, highest/lowest prices and adjusted close prices of these companies.
+For this particular project, we are looking at the stock prices of three major tech companies: Apple, Facebook and Google, from the years of 2012 to 2018. We got access to the dates, opening S&P 500 indices and closing prices of these companies from Yahoo Finance.
 
-Based on the nature of stock market, there can potentially be temporal structures when analyzing and predicting stock prices. We take the difference between the opening and the closing prices of the stocks as the response variable and try to fit appropriate models to help determine what affects the change in stock prices each day for each company, as well as understanding the temporal structures within.
+Based on the nature of stock market, there can potentially be temporal structures when analyzing and predicting stock prices. We took the closing price as the response variable and tried to fit appropriate models with the S&P 500 indices as the mean structure to help predict the closing prices each day for each company, as well as understanding the temporal structures within.
 
-We will first look at some Explanatory Data Analyses for all four companies, then try to fit simpler models with no temporal structures, and finally fit and evaluate temporal models for each company. For the temporal model fitting part specifically, we will try two different methods: both auto-fitting ARIMA models, as well as models with Gaussian Process. We would then compare the performances of all three types models fit by both methods.
+Due to the fact that all of the companies share the same timeline and have data of their own at the same time points, we would have to fit three individual models for each of them. We will first look at some Explanatory Data Analyses for all three companies, then try to fit simpler models with no temporal structures, and finally fit and evaluate temporal models for each company. For the temporal model fitting part specifically, we will try two different methods: both auto-fitting ARIMA models, as well as models with Gaussian Process. We then compared the performances of all three types models fit by both methods.
 
-Lastly, we wish to come to a conclusion for our questions of interest: what are the factors that can potentially affect the closing prices of stocks? Is there any temporal dependency in the closing prices? Are there differences among different companies or they share similar trends and structures in their stocks?  We would also have a discussion on the adequacy, potential problems with the models and provide suggestions for developing this project.
+Lastly, we wish to come to a conclusion for our questions of interest: can we predict the closing prices of stocks with the S&P 500 index solely? Is there any temporal dependency in the closing prices? Are there differences among different companies or do they share similar trends and structures in their stocks?  Can this trend or model, potentially with the temporal structure, potentially be generalized to other companies? We would also have a discussion on the adequacy, potential problems with the models and provide suggestions for developing this project in the future.
 
 ## Exploratory Data Analysis
 
 ```{r message=FALSE}
 summary(df)
+#time trend
 p1 = ggplot(data = df %>% arrange(Date), aes(x = Date, y = fb_close)) +
   geom_line() +
   ggtitle("Stock Close Price of Facebook")
@@ -51,18 +52,29 @@ p4 = ggplot(data = df %>% arrange(Date), aes(x = Date, y = Open)) +
   geom_line() +
   ggtitle("S&P 500 Index Open")
 grid.arrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
+
+#scatter plot
+p1 = ggplot(data = df, aes(x = Open, y = fb_close)) +
+  geom_point(size = 0.1) +
+  ggtitle("Close~Open for Facebook")
+p2 = ggplot(data = df, aes(x = Open, y = apple_close)) +
+  geom_point(size = 0.1) +
+  ggtitle("Close~Open for Apple")
+p3 = ggplot(data = df, aes(x = Open, y = google_close)) +
+  geom_point(size = 0.1) +
+  ggtitle("Close~Open for Google")
+grid.arrange(p1, p2, p3, nrow = 2, ncol = 2)
 ```
 
-Among all variables available in the dataset, we only focused on two variables `Date` and `Close`. Reasons why we didn't use other variables are as follows:
-1. `Open`: The correlation between variables `Open` and `Close` is almost one. This result intuitively makes sense because the average magnitude of daily stock price fluctuation is minimal compared with stock price itself. However, since `Open` and `Close` are almost perfectly correlated, we thought that using `Open` as the predictor for `Close` will not help us understand the research question that we're interested. Therefore, we didn't include `Open` in our analysis.
-2. `High` & `Low` & `Volume`: These three variables are numbers that can only be revealed at the end of each trading day, when the value for `Close` is also revealed. In another word, there's no way for us to know `High`, `Low` or `Volume` ahead of knowing `Close`. Therefore, it doesn't make sense to include any of these as covariates in the model to predict `Close`.
-3. `Adj. Close`: The dataset we downloaded doesn't include a data dictionary about what adjustment is made to `Close`, so we weren't able to use it.
+We mainly focused on three variables `Date`, `Open` (Opening S&P indices) and `Close` (Closing stock price) for all three companies.
 
-These four companies went to public at very different times, so date ranges for each company in this dataset are very different. From the boxplot, we can see that Amazon, Apple and Google's `Close` are skewed while Facebook's `Close` price is not as skewed as that of the other three companies. From line plots, we can see that before 2005, Amazon and Apple's `Close` are horizontal lines, meaning that there weren't many changes. However, starting in 2005, all four companies experienced dramatic growth in their `Close`. This observation makes sense because of the Internet's boom. To better compare all four companies' close stock price, we decided to align date ranges for them by taking a subset of observations with a date after 2012-08-05 and build models with the subset.
+The line plots of all of the closing prices of the three companies against date, as well as the S&P 500 index against date, show linear trend as time goes by. This is an expected trend as the stock market is continuously inflating, especially since the tech companies have been rapidly developing during the time period that we're looking at. Similarly, the S&P 500 index has an increasing the linear trend. Thus, by using the indices as a predictor/mean structure, we're able to de-trend the linear trend in the closing prices and then move on to looking at any remaining temporal structure.
+
+Then we look at scatter plots of all three companies with the closing price against the open S&P 500 indices. Even though there is a bit of discrepancy in the trend shown by Apple, it is more or less closer to a linear trend. Thus, the scatter plots further confirmed using the S&P 500 index as the mean structure.
 
 ## Method 1: Simple Linear Models
 
-The first method is fitting a simple linear model for each individual company. We used the data to predict the difference between the close price and the open price on each day. Since each day would have price data for all four companies, we would have to build four individual time series models. For the sake of comparing and evaluating model performances, we fit four different linear models as well, instead of using `Stock` as one of the predictors.
+The first method is fitting a simple linear model for each individual company. We used the S&P 500 index to predict daily closing price for all three companies separately. 
 
 ```{r}
 #Apple
@@ -108,17 +120,23 @@ rmse(df$google_close, df$google_naive_pred)
 
 ## Method 2: ARIMA Time Series Models
 
+We then proceed to fit ARIMA time series models for each of the three companies of interest. The model is specified as follows:
+
 $$
 \begin{aligned}
 Close_t &= ARIMA_{(p, q, d) \times (P, Q, D)_s}(Close_{t-1, \cdots}) + \beta_1 * Open_{(S\&P_500)}
 \end{aligned}
 $$
+Mean structure was added to the models with the open price of S&P apart from the ARIMA time series in predicting `Close`. We first fitted auto.arima models on all of the three companies and examined their residual plots for further model improvements. 
+
+The residual plot for Apple after fitting the auto ARIMA(2,1,0) model looks approximately randomized without salient spikes, so we decided to go with the result. As for Facebook, through close examination of the residual plot after fitting auto ARIMA(2,1,2), we found spikes at period 30. We thus tried to add a seasonal AR or MA trend to the model for potential improvements. However, the residual plots after adding seasonal terms did not show any sign of better performance of the model. What is more, we noticed that the autocorrelation with lag 30 is about 0.1, which is relatively small. So we decided to stick with the result from auto.arima with model ARIMA(2,1,2) for Facebook. We then examined the residual plot of the auto ARIMA(2,1,2) model for Google: although there are spikes in the residual plot, it is also important to notice that the autocorrelation is lower than 0.04. Thus, we decided to keep the original version of auto.arima model for Google as well.
+
 
 ```{r}
 #Apple
 apple.ts = auto.arima(df %>% select(apple_close), xreg = df$Open, seasonal = TRUE)
 apple.ts %>% summary()
-ggtsdisplay(apple.ts$residuals, main = "ARIMA(2,1,2)")
+ggtsdisplay(apple.ts$residuals, main = "ARIMA(2,1,0)")
 
 #Residual plot looks good and we will go with the result.
 df$apple_ts_pred = c(apple.ts$fitted)
@@ -185,6 +203,7 @@ subset = df[1239:1490, ]
 ```
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 ###Gaussian Process Modeling
 ```{r}
 gp_model_apple = "model{
@@ -194,6 +213,34 @@ gp_model_apple = "model{
     mu[i] <- 0
   }
 
+=======
+###Apple
+```{r}
+apple_emp_cloud = subset %>% emp_semivariogram(apple_naive_residual,Date)
+apple_emp = rbind(
+  subset %>% emp_semivariogram(apple_naive_residual, Date, bin=TRUE, binwidth=5)  %>% mutate(binwidth="binwidth=5"),
+  subset %>% emp_semivariogram(apple_naive_residual, Date, bin=TRUE, binwidth=20) %>% mutate(binwidth="binwidth=20"),
+  subset %>% emp_semivariogram(apple_naive_residual, Date, bin=TRUE, binwidth=10) %>% mutate(binwidth="binwidth=10"),
+  subset %>% emp_semivariogram(apple_naive_residual, Date, bin=TRUE, binwidth=40)   %>% mutate(binwidth="binwidth=40"),
+  subset %>% emp_semivariogram(apple_naive_residual, Date, bin=TRUE, binwidth=30)  %>% mutate(binwidth="binwidth=30")
+)
+
+apple_emp %>%
+  ggplot(aes(x=h, y=gamma)) +
+  geom_point(size = 1) +
+  ggtitle("Empirical Semivariogram of Apple (binned)")+
+  facet_wrap(~binwidth, nrow=2)
+```
+
+```{r}
+apple_gp_exp_model = "model{
+  y ~ dmnorm(mu, inverse(Sigma))
+
+  for (i in 1:N) {
+    mu[i] <- beta[1]+ beta[2] * x[i]
+  }
+  
+>>>>>>> c886ed97cc392223906d11a11027a6a4fff14490
   for (i in 1:(N-1)) {
     for (j in (i+1):N) {
       Sigma[i,j] <- sigma2 * exp(- pow(l*d[i,j],2))
@@ -202,6 +249,7 @@ gp_model_apple = "model{
   }
 
   for (k in 1:N) {
+<<<<<<< HEAD
     Sigma[k,k] <- sigma2 + 0.00001
   }
 
@@ -216,10 +264,37 @@ m_apple = rjags::jags.model(
       y = (apple.stock$Diff),
       d = dist(apple.stock$Date) %>% as.matrix(),
       N = length(apple.stock$Diff)
+=======
+    Sigma[k,k] <- sigma2 + sigma2_w
+  }
+
+  for (i in 1:2) {
+    beta[i] ~ dt(coef[i], 2.5, 1)
+  }
+  sigma2_w ~ dnorm(10, 1/25) T(0,)
+  sigma2   ~ dnorm(50, 1/25) T(0,)
+  l        ~ dt(0,2.5,1) T(0,) 
+}"
+```
+
+```{r}
+if (file.exists("apple_gp_jags.Rdata")) {
+  load(file="apple_gp_jags.Rdata")
+} else {
+  m = rjags::jags.model(
+    textConnection(apple_gp_exp_model), 
+    data = list(
+      y = subset$apple_close,
+      x = subset$Open,
+      d = dist(subset$Date) %>% as.matrix(),
+      N = nrow(subset),
+      coef = coef(apple_lm)
+>>>>>>> c886ed97cc392223906d11a11027a6a4fff14490
     ),
     quiet = TRUE
   )
 
+<<<<<<< HEAD
   update(m, n.iter=5000)
 
   apple_cov_coda = rjags::coda.samples(
@@ -242,8 +317,96 @@ apple_gp %>%
 
 =======
 >>>>>>> 23d6a03834fa194950dec279067aa6ceffdce848
+=======
+  update(m, n.iter=2000)
+
+  exp_cov_coda = rjags::coda.samples(
+    m, variable.names=c("beta", "sigma2", "l", "sigma2_w"),
+    n.iter=2000, thin=10
+  )
+  save(exp_cov_coda, file="apple_gp_jags.Rdata")
+}
+```
+
 ```{r}
-#Facebook semivariogram
+betas = tidybayes::gather_draws(exp_cov_coda, beta[i]) %>%
+  ungroup() %>%
+  mutate(.variable = paste0(.variable, "[",i,"]")) %>%
+  select(-i)
+betas %>%
+  group_by(.variable) %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.iteration, y=.value, color=.variable)) +
+    geom_line() +
+    facet_grid(.variable~., scales = "free_y")
+params = tidybayes::gather_draws(exp_cov_coda, sigma2, l, sigma2_w)
+params %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.iteration, y=.value, color=.variable)) +
+    geom_line() +
+    facet_grid(.variable~., scales="free_y")
+params %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.value, fill=.variable)) +
+    geom_density() +
+    facet_wrap(~.variable, scales="free") +
+    guides(fill=FALSE)
+params %>%
+  slice(seq(1,n(),length.out=500)) %>% 
+  filter(.variable == "l") %>%
+  ggplot(aes(x=.value, fill=.variable)) +
+    geom_density() +
+    scale_x_log10() +
+    facet_wrap(~.variable, scales="free") +
+    guides(fill=FALSE)
+post = bind_rows(betas, params) %>%
+  group_by(.variable) %>%
+  summarize(
+    post_mean = mean(.value),
+    post_med  = median(.value),
+    post_lower = quantile(.value, probs = 0.025),
+    post_upper = quantile(.value, probs = 0.975)
+  )
+knitr::kable(post, digits = 5)
+l = post %>% filter(.variable == 'l') %>% pull(post_med)
+sigma2 = post %>% filter(.variable == 'sigma2') %>% pull(post_med)
+sigma2_w = post %>% filter(.variable == 'sigma2_w') %>% pull(post_med)
+beta0 = post %>% filter(.variable == 'beta[1]') %>% pull(post_med)
+beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
+df = df %>% mutate(apple_gp_resid = apple_close - beta0 - beta1 * Open)
+
+reps=1000
+x = subset$Open + rnorm(252, 0.01)
+y = subset$apple_close
+x_pred = subset$Open + rnorm(252, 0.01)
+mu = beta0 + beta1*x
+mu_pred = beta0 + beta1*x_pred
+dist_o = fields::rdist(x)
+dist_p = fields::rdist(x_pred)
+dist_op = fields::rdist(x, x_pred)
+dist_po = t(dist_op)
+cov_o  = sq_exp_cov(dist_o,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_p  = sq_exp_cov(dist_p,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_op = sq_exp_cov(dist_op, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_po = sq_exp_cov(dist_po, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cond_cov = cov_p - cov_po %*% solve(cov_o) %*% cov_op
+cond_mu  = mu_pred + cov_po %*% solve(cov_o) %*% (y - mu)
+pred_bayes = cond_mu %*% matrix(1, ncol=reps) + t(chol(cond_cov)) %*% matrix(rnorm(length(x_pred)*reps), ncol=reps)
+apple_pred_df_bayes = pred_bayes %>% t() %>% post_summary() %>% mutate(x=x_pred)
+apple_pred_df_bayes$Date = subset$Date
+ggplot(subset, aes(x=Date)) +
+  geom_line(aes(y=apple_close)) +
+  geom_ribbon(data=apple_pred_df_bayes, aes(ymin=post_lower,ymax=post_upper, x=Date), fill="red", alpha=0.5) +
+  geom_line(data=apple_pred_df_bayes, aes(y=post_mean), color='blue', size=0.5) + 
+  ylab("Apple Daily Close Stock Price")
+#use mean as the predicted value from bayes to calculate RMSE
+rmse(subset$fb_close,apple_pred_df_bayes$post_mean)
+```
+
+
+###Facebook
+>>>>>>> c886ed97cc392223906d11a11027a6a4fff14490
+```{r}
 fb_emp_cloud = subset %>% emp_semivariogram(fb_naive_residual,Date)
 fb_emp = rbind(
   subset %>% emp_semivariogram(fb_naive_residual, Date, bin=TRUE, binwidth=1)  %>% mutate(binwidth="binwidth=1"),
@@ -366,9 +529,9 @@ beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
 df = df %>% mutate(fb_gp_resid = fb_close - beta0 - beta1 * Open)
 
 reps=1000
-x = df$Open
-y = df$fb_close
-x_pred = df$Open + rnorm(365, 0.01)
+x = subset$Open
+y = subset$fb_close
+x_pred = subset$Open + .5
 mu = beta0 + beta1*x
 mu_pred = beta0 + beta1*x_pred
 dist_o = fields::rdist(x)
@@ -382,16 +545,64 @@ cov_po = sq_exp_cov(dist_po, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
 cond_cov = cov_p - cov_po %*% solve(cov_o) %*% cov_op
 cond_mu  = mu_pred + cov_po %*% solve(cov_o) %*% (y - mu)
 pred_bayes = cond_mu %*% matrix(1, ncol=reps) + t(chol(cond_cov)) %*% matrix(rnorm(length(x_pred)*reps), ncol=reps)
-pred_df_bayes = pred_bayes %>% t() %>% post_summary() %>% mutate(x=x_pred)
-
-
-
-
-
-rmse(new_df$fb_close, new_df$fb_bayes_predict)
-
+fb_pred_df_bayes = pred_bayes %>% t() %>% post_summary() %>% mutate(x=x_pred)
+fb_pred_df_bayes$Date = subset$Date
+ggplot(subset, aes(x=Date)) +
+  geom_line(aes(y=fb_close)) +
+  geom_ribbon(data=fb_pred_df_bayes, aes(ymin=post_lower,ymax=post_upper, x=Date), fill="red", alpha=0.5) +
+  geom_line(data=fb_pred_df_bayes, aes(y=post_mean), color='blue', size=0.5) + 
+  ylab("Facebook Daily Close Stock Price")
+#use mean as the predicted value from bayes to calculate RMSE
+rmse(subset$fb_close,fb_pred_df_bayes$post_mean)
 ```
 
+###Google
+```{r}
+google_emp_cloud = subset %>% emp_semivariogram(google_naive_residual,Date)
+google_emp = rbind(
+  subset %>% emp_semivariogram(google_naive_residual, Date, bin=TRUE, binwidth=1)  %>% mutate(binwidth="binwidth=1"),
+  subset %>% emp_semivariogram(google_naive_residual, Date, bin=TRUE, binwidth=5) %>% mutate(binwidth="binwidth=5"),
+  subset %>% emp_semivariogram(google_naive_residual, Date, bin=TRUE, binwidth=10) %>% mutate(binwidth="binwidth=10"),
+  subset %>% emp_semivariogram(google_naive_residual, Date, bin=TRUE, binwidth=15)   %>% mutate(binwidth="binwidth=15"),
+  subset %>% emp_semivariogram(google_naive_residual, Date, bin=TRUE, binwidth=30)  %>% mutate(binwidth="binwidth=30")
+)
+
+google_emp %>%
+  ggplot(aes(x=h, y=gamma)) +
+  geom_point(size = 1) +
+  ggtitle("Empirical Semivariogram of Google (binned)")+
+  facet_wrap(~binwidth, nrow=2)
+```
+
+```{r}
+google_gp_exp_model = "model{
+  y ~ dmnorm(mu, inverse(Sigma))
+
+  for (i in 1:N) {
+    mu[i] <- beta[1]+ beta[2] * x[i]
+  }
+  
+  for (i in 1:(N-1)) {
+    for (j in (i+1):N) {
+      Sigma[i,j] <- sigma2 * exp(- pow(l*d[i,j],2))
+      Sigma[j,i] <- Sigma[i,j]
+    }
+  }
+
+  for (k in 1:N) {
+    Sigma[k,k] <- sigma2 + sigma2_w
+  }
+
+  for (i in 1:2) {
+    beta[i] ~ dt(coef[i], 2.5, 1)
+  }
+  sigma2_w ~ dnorm(100, 1/100) T(0,)
+  sigma2   ~ dnorm(700, 1/400) T(0,)
+  l        ~ dt(0,2.5,1) T(0,) 
+}"
+```
+
+<<<<<<< HEAD
 <<<<<<< HEAD
 ```{r}
 x_pred = 1:365 + rnorm(365, 0.01)
@@ -420,6 +631,108 @@ pred_df_emp = pred %>% t() %>% post_summary() %>% mutate(day=x_pred)
 =======
 
 >>>>>>> 23d6a03834fa194950dec279067aa6ceffdce848
+=======
+```{r}
+if (file.exists("google_gp_jags.Rdata")) {
+  load(file="google_gp_jags.Rdata")
+} else {
+  m = rjags::jags.model(
+    textConnection(google_gp_exp_model), 
+    data = list(
+      y = subset$google_close,
+      x = subset$Open,
+      d = dist(subset$Date) %>% as.matrix(),
+      N = nrow(subset),
+      coef = coef(google_lm)
+    ),
+    quiet = TRUE
+  )
+
+  update(m, n.iter=2000)
+
+  exp_cov_coda = rjags::coda.samples(
+    m, variable.names=c("beta", "sigma2", "l", "sigma2_w"),
+    n.iter=2000, thin=10
+  )
+  save(exp_cov_coda, file="google_gp_jags.Rdata")
+}
+```
+
+```{r}
+betas = tidybayes::gather_draws(exp_cov_coda, beta[i]) %>%
+  ungroup() %>%
+  mutate(.variable = paste0(.variable, "[",i,"]")) %>%
+  select(-i)
+betas %>%
+  group_by(.variable) %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.iteration, y=.value, color=.variable)) +
+    geom_line() +
+    facet_grid(.variable~., scales = "free_y")
+params = tidybayes::gather_draws(exp_cov_coda, sigma2, l, sigma2_w)
+params %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.iteration, y=.value, color=.variable)) +
+    geom_line() +
+    facet_grid(.variable~., scales="free_y")
+params %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.value, fill=.variable)) +
+    geom_density() +
+    facet_wrap(~.variable, scales="free") +
+    guides(fill=FALSE)
+params %>%
+  slice(seq(1,n(),length.out=500)) %>% 
+  filter(.variable == "l") %>%
+  ggplot(aes(x=.value, fill=.variable)) +
+    geom_density() +
+    scale_x_log10() +
+    facet_wrap(~.variable, scales="free") +
+    guides(fill=FALSE)
+post = bind_rows(betas, params) %>%
+  group_by(.variable) %>%
+  summarize(
+    post_mean = mean(.value),
+    post_med  = median(.value),
+    post_lower = quantile(.value, probs = 0.025),
+    post_upper = quantile(.value, probs = 0.975)
+  )
+knitr::kable(post, digits = 5)
+l = post %>% filter(.variable == 'l') %>% pull(post_med)
+sigma2 = post %>% filter(.variable == 'sigma2') %>% pull(post_med)
+sigma2_w = post %>% filter(.variable == 'sigma2_w') %>% pull(post_med)
+beta0 = post %>% filter(.variable == 'beta[1]') %>% pull(post_med)
+beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
+df = df %>% mutate(google_gp_resid = google_close - beta0 - beta1 * Open)
+
+reps=1000
+x = subset$Open + rnorm(252, 0.01)
+y = subset$google_close
+x_pred = subset$Open + rnorm(252, 0.01)
+mu = beta0 + beta1*x
+mu_pred = beta0 + beta1*x_pred
+dist_o = fields::rdist(x)
+dist_p = fields::rdist(x_pred)
+dist_op = fields::rdist(x, x_pred)
+dist_po = t(dist_op)
+cov_o  = sq_exp_cov(dist_o,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_p  = sq_exp_cov(dist_p,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_op = sq_exp_cov(dist_op, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_po = sq_exp_cov(dist_po, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cond_cov = cov_p - cov_po %*% solve(cov_o) %*% cov_op
+cond_mu  = mu_pred + cov_po %*% solve(cov_o) %*% (y - mu)
+pred_bayes = cond_mu %*% matrix(1, ncol=reps) + t(chol(cond_cov)) %*% matrix(rnorm(length(x_pred)*reps), ncol=reps)
+google_pred_df_bayes = pred_bayes %>% t() %>% post_summary() %>% mutate(x=x_pred)
+google_pred_df_bayes$Date = subset$Date
+ggplot(subset, aes(x=Date)) +
+  geom_line(aes(y=google_close)) +
+  geom_ribbon(data=google_pred_df_bayes, aes(ymin=post_lower,ymax=post_upper, x=Date), fill="red", alpha=0.5) +
+  geom_line(data=google_pred_df_bayes, aes(y=post_mean), color='blue', size=0.5) + 
+  ylab("Google Daily Close Stock Price")
+#use mean as the predicted value from bayes to calculate RMSE
+rmse(subset$google_close,google_pred_df_bayes$post_mean)
+```
+>>>>>>> c886ed97cc392223906d11a11027a6a4fff14490
 
 ## Conclusion
 
