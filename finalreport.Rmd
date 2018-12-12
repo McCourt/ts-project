@@ -120,7 +120,7 @@ rmse(df$google_close, df$google_naive_pred)
 
 ## Method 2: ARIMA Time Series Models
 
-We then proceed to fit ARIMA time series models for each of the three companies of interest. The model is specified as follows:
+We then proceeded to fit ARIMA time series models for each of the three companies of interest. The model is specified as follows:
 
 $$
 \begin{aligned}
