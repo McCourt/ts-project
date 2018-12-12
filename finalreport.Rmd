@@ -38,6 +38,7 @@ Lastly, we wish to come to a conclusion for our questions of interest: can we pr
 
 ```{r message=FALSE}
 summary(df)
+#time trend
 p1 = ggplot(data = df %>% arrange(Date), aes(x = Date, y = fb_close)) +
   geom_line() +
   ggtitle("Stock Close Price of Facebook")
@@ -51,11 +52,25 @@ p4 = ggplot(data = df %>% arrange(Date), aes(x = Date, y = Open)) +
   geom_line() +
   ggtitle("S&P 500 Index Open")
 grid.arrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
+
+#scatter plot
+p1 = ggplot(data = df, aes(x = Open, y = fb_close)) +
+  geom_point(size = 0.1) +
+  ggtitle("Close~Open for Facebook")
+p2 = ggplot(data = df, aes(x = Open, y = apple_close)) +
+  geom_point(size = 0.1) +
+  ggtitle("Close~Open for Apple")
+p3 = ggplot(data = df, aes(x = Open, y = google_close)) +
+  geom_point(size = 0.1) +
+  ggtitle("Close~Open for Google")
+grid.arrange(p1, p2, p3, nrow = 2, ncol = 2)
 ```
 
 Among all variables available in the dataset, we mainly focused on three variables `Date`, `Open` (Opening S&P indeces) and `Close` (Closing stock price).
 
 The line plots of all of the closing prices of the three companies against date, as well as the S&P 500 index against date, show linear trend as time goes by. This is an expected trend as the stock market is continuously inflating, especially since the tech companies have been rapidly developing during the time period that we're looking at. Similarly, the S&P 500 index has an increasing the linear trend. Thus, by using the indeces as a predictor/mean structure, we're able to de-trend the linear trend in the closing prices and then move on to looking at any remaining temporal structure.
+
+Then we look at scatter plots of all three companies with the closing price against the open S&P 500 indeces. Even though there is a bit of discrepancy in the trend shown by Apple, it is more or less closer to a linear trend. Thus, the scatter plots further confirmed using the S&P 500 index as the mean structure.
 
 ## Method 1: Simple Linear Models
 
