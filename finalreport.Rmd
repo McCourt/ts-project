@@ -212,18 +212,6 @@ source("util.R")
 subset = df[1239:1490, ]
 ```
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-###Gaussian Process Modeling
-```{r}
-gp_model_apple = "model{
-  y ~ dmnorm(mu, inverse(Sigma))
-
-  for (i in 1:N) {
-    mu[i] <- 0
-  }
-
-=======
 ###Apple
 ```{r}
 apple_emp_cloud = subset %>% emp_semivariogram(apple_naive_residual,Date)
@@ -234,7 +222,6 @@ apple_emp = rbind(
   subset %>% emp_semivariogram(apple_naive_residual, Date, bin=TRUE, binwidth=40)   %>% mutate(binwidth="binwidth=40"),
   subset %>% emp_semivariogram(apple_naive_residual, Date, bin=TRUE, binwidth=30)  %>% mutate(binwidth="binwidth=30")
 )
-
 apple_emp %>%
   ggplot(aes(x=h, y=gamma)) +
   geom_point(size = 1) +
@@ -245,39 +232,19 @@ apple_emp %>%
 ```{r}
 apple_gp_exp_model = "model{
   y ~ dmnorm(mu, inverse(Sigma))
-
   for (i in 1:N) {
     mu[i] <- beta[1]+ beta[2] * x[i]
   }
   
->>>>>>> c886ed97cc392223906d11a11027a6a4fff14490
   for (i in 1:(N-1)) {
     for (j in (i+1):N) {
       Sigma[i,j] <- sigma2 * exp(- pow(l*d[i,j],2))
       Sigma[j,i] <- Sigma[i,j]
     }
   }
-
   for (k in 1:N) {
-<<<<<<< HEAD
-    Sigma[k,k] <- sigma2 + 0.00001
-  }
-
-  sigma2   ~ dlnorm(0, 1.5)
-  l        ~ dt(0, 2.5, 1) T(0,) # Half-cauchy(0,2.5)
-}"
-
-
-m_apple = rjags::jags.model(
-    textConnection(gp_model_apple), 
-    data = list(
-      y = (apple.stock$Diff),
-      d = dist(apple.stock$Date) %>% as.matrix(),
-      N = length(apple.stock$Diff)
-=======
     Sigma[k,k] <- sigma2 + sigma2_w
   }
-
   for (i in 1:2) {
     beta[i] ~ dt(coef[i], 2.5, 1)
   }
@@ -299,37 +266,10 @@ if (file.exists("apple_gp_jags.Rdata")) {
       d = dist(subset$Date) %>% as.matrix(),
       N = nrow(subset),
       coef = coef(apple_lm)
->>>>>>> c886ed97cc392223906d11a11027a6a4fff14490
     ),
     quiet = TRUE
   )
-
-<<<<<<< HEAD
-  update(m, n.iter=5000)
-
-  apple_cov_coda = rjags::coda.samples(
-    m, variable.names=c("sigma2", "l"),
-    n.iter=10000, thin=10
-  )
-  saveRDS(apple_cov_coda, file="gp_apple_jags.rds")
-
-apple_gp = tidybayes::gather_samples(apple_cov_coda, sigma2, l)
-
-apple_gp %>%
-  slice(seq(1,n(),2)) %>%
-  ggplot(aes(x=.iteration, y=estimate, color=term)) +
-  geom_line() +
-  facet_grid(term~., scale="free_y")
-
-```
-
-
-
-=======
->>>>>>> 23d6a03834fa194950dec279067aa6ceffdce848
-=======
   update(m, n.iter=2000)
-
   exp_cov_coda = rjags::coda.samples(
     m, variable.names=c("beta", "sigma2", "l", "sigma2_w"),
     n.iter=2000, thin=10
@@ -384,7 +324,6 @@ sigma2_w = post %>% filter(.variable == 'sigma2_w') %>% pull(post_med)
 beta0 = post %>% filter(.variable == 'beta[1]') %>% pull(post_med)
 beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
 df = df %>% mutate(apple_gp_resid = apple_close - beta0 - beta1 * Open)
-
 reps=1000
 x = subset$Open
 y = subset$apple_close
@@ -417,7 +356,6 @@ rmse(subset$fb_close,apple_pred_df_bayes$post_mean)
 
 
 ###Facebook
->>>>>>> c886ed97cc392223906d11a11027a6a4fff14490
 ```{r}
 fb_emp_cloud = subset %>% emp_semivariogram(fb_naive_residual,Date)
 fb_emp = rbind(
@@ -427,7 +365,6 @@ fb_emp = rbind(
   subset %>% emp_semivariogram(fb_naive_residual, Date, bin=TRUE, binwidth=15)   %>% mutate(binwidth="binwidth=15"),
   subset %>% emp_semivariogram(fb_naive_residual, Date, bin=TRUE, binwidth=30)  %>% mutate(binwidth="binwidth=30")
 )
-
 fb_emp %>%
   ggplot(aes(x=h, y=gamma)) +
   geom_point(size = 1) +
@@ -438,7 +375,6 @@ fb_emp %>%
 ```{r}
 fb_gp_exp_model = "model{
   y ~ dmnorm(mu, inverse(Sigma))
-
   for (i in 1:N) {
     mu[i] <- beta[1]+ beta[2] * x[i]
   }
@@ -449,11 +385,9 @@ fb_gp_exp_model = "model{
       Sigma[j,i] <- Sigma[i,j]
     }
   }
-
   for (k in 1:N) {
     Sigma[k,k] <- sigma2 + sigma2_w
   }
-
   for (i in 1:2) {
     beta[i] ~ dt(coef[i], 2.5, 1)
   }
@@ -478,19 +412,13 @@ if (file.exists("fb_gp_jags.Rdata")) {
     ),
     quiet = TRUE
   )
-
   update(m, n.iter=2000)
-
   exp_cov_coda = rjags::coda.samples(
     m, variable.names=c("beta", "sigma2", "l", "sigma2_w"),
     n.iter=2000, thin=10
   )
   save(exp_cov_coda, file="fb_gp_jags.Rdata")
 }
-<<<<<<< HEAD
-
-=======
->>>>>>> 23d6a03834fa194950dec279067aa6ceffdce848
 ```
 
 ```{r}
@@ -539,7 +467,6 @@ sigma2_w = post %>% filter(.variable == 'sigma2_w') %>% pull(post_med)
 beta0 = post %>% filter(.variable == 'beta[1]') %>% pull(post_med)
 beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
 df = df %>% mutate(fb_gp_resid = fb_close - beta0 - beta1 * Open)
-
 reps=1000
 x = subset$Open
 y = subset$fb_close
@@ -580,7 +507,6 @@ google_emp = rbind(
   subset %>% emp_semivariogram(google_naive_residual, Date, bin=TRUE, binwidth=15)   %>% mutate(binwidth="binwidth=15"),
   subset %>% emp_semivariogram(google_naive_residual, Date, bin=TRUE, binwidth=30)  %>% mutate(binwidth="binwidth=30")
 )
-
 google_emp %>%
   ggplot(aes(x=h, y=gamma)) +
   geom_point(size = 1) +
@@ -591,7 +517,6 @@ google_emp %>%
 ```{r}
 google_gp_exp_model = "model{
   y ~ dmnorm(mu, inverse(Sigma))
-
   for (i in 1:N) {
     mu[i] <- beta[1]+ beta[2] * x[i]
   }
@@ -602,11 +527,9 @@ google_gp_exp_model = "model{
       Sigma[j,i] <- Sigma[i,j]
     }
   }
-
   for (k in 1:N) {
     Sigma[k,k] <- sigma2 + sigma2_w
   }
-
   for (i in 1:2) {
     beta[i] ~ dt(coef[i], 2.5, 1)
   }
@@ -616,36 +539,6 @@ google_gp_exp_model = "model{
 }"
 ```
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-```{r}
-x_pred = 1:365 + rnorm(365, 0.01)
-
-mu = beta0 + beta1*x + beta2*x^2
-mu_pred = beta0 + beta1*x_pred + beta2*x_pred^2
-
-dist_o = fields::rdist(x)
-dist_p = fields::rdist(x_pred)
-dist_op = fields::rdist(x, x_pred)
-dist_po = t(dist_op)
-  
-cov_o  = sq_exp_cov(dist_o,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
-cov_p  = sq_exp_cov(dist_p,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
-cov_op = sq_exp_cov(dist_op, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
-cov_po = sq_exp_cov(dist_po, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
-
-cond_cov = cov_p - cov_po %*% solve(cov_o) %*% cov_op
-cond_mu  = mu_pred + cov_po %*% solve(cov_o) %*% (y - mu)
-  
-pred = cond_mu %*% matrix(1, ncol=reps) + t(chol(cond_cov)) %*% matrix(rnorm(length(x_pred)*reps), ncol=reps)
-
-pred_df_emp = pred %>% t() %>% post_summary() %>% mutate(day=x_pred)
-
-```
-=======
-
->>>>>>> 23d6a03834fa194950dec279067aa6ceffdce848
-=======
 ```{r}
 if (file.exists("google_gp_jags.Rdata")) {
   load(file="google_gp_jags.Rdata")
@@ -661,9 +554,7 @@ if (file.exists("google_gp_jags.Rdata")) {
     ),
     quiet = TRUE
   )
-
   update(m, n.iter=2000)
-
   exp_cov_coda = rjags::coda.samples(
     m, variable.names=c("beta", "sigma2", "l", "sigma2_w"),
     n.iter=2000, thin=10
@@ -718,7 +609,6 @@ sigma2_w = post %>% filter(.variable == 'sigma2_w') %>% pull(post_med)
 beta0 = post %>% filter(.variable == 'beta[1]') %>% pull(post_med)
 beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
 df = df %>% mutate(google_gp_resid = google_close - beta0 - beta1 * Open)
-
 reps=1000
 x = subset$Open
 y = subset$google_close
@@ -748,7 +638,6 @@ ggplot(subset, aes(x=Date)) +
 #use mean as the predicted value from bayes to calculate RMSE
 rmse(subset$google_close,google_pred_df_bayes$post_mean)
 ```
->>>>>>> c886ed97cc392223906d11a11027a6a4fff14490
 
 ## Conclusion
 
