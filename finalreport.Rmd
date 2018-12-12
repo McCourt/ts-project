@@ -26,13 +26,13 @@ rmse = function(pred, truth){
 
 ## Introduction
 
-For this particular project, we are looking at the stock prices of four major tech companies: Apple, Facebook, Amazon and Google, from the years of, correspondingly, 1980, 2012, 1997 and 2004 to the year of 2018. With the data downloaded from Kaggle (*https://www.kaggle.com/stexo92/gafa-stock-prices*), we got access to the dates, opening prices, closing prices, stock volume, highest/lowest prices and adjusted close prices of these companies.
+For this particular project, we are looking at the stock prices of three major tech companies: Apple, Facebook and Google, from the years of 2012 to 2018. With the , we got access to the dates, opening S&P 500 indeces and closing prices of these companies.
 
-Based on the nature of stock market, there can potentially be temporal structures when analyzing and predicting stock prices. We take the difference between the opening and the closing prices of the stocks as the response variable and try to fit appropriate models to help determine what affects the change in stock prices each day for each company, as well as understanding the temporal structures within.
+Based on the nature of stock market, there can potentially be temporal structures when analyzing and predicting stock prices. We took the closing price as the response variable and try to fit appropriate models with the S&P 500 indeces as the mean structure to help predict the closing prices each day for each company, as well as understanding the temporal structures within.
 
-We will first look at some Explanatory Data Analyses for all four companies, then try to fit simpler models with no temporal structures, and finally fit and evaluate temporal models for each company. For the temporal model fitting part specifically, we will try two different methods: both auto-fitting ARIMA models, as well as models with Gaussian Process. We would then compare the performances of all three types models fit by both methods.
+Due to the fact that all of the companies share the same timeline and have data of their own at the same time points, we would have to fit three individual models for each of them. We will first look at some Explanatory Data Analyses for all three companies, then try to fit simpler models with no temporal structures, and finally fit and evaluate temporal models for each company. For the temporal model fitting part specifically, we will try two different methods: both auto-fitting ARIMA models, as well as models with Gaussian Process. We then compared the performances of all three types models fit by both methods.
 
-Lastly, we wish to come to a conclusion for our questions of interest: what are the factors that can potentially affect the closing prices of stocks? Is there any temporal dependency in the closing prices? Are there differences among different companies or they share similar trends and structures in their stocks?  We would also have a discussion on the adequacy, potential problems with the models and provide suggestions for developing this project.
+Lastly, we wish to come to a conclusion for our questions of interest: can we predict the closing prices of stocks with the S&P 500 index solely? Is there any temporal dependency in the closing prices? Are there differences among different companies or they share similar trends and structures in their stocks?  Can this trend or model, potentially with the temporal structure, potentially be generalized to We would also have a discussion on the adequacy, potential problems with the models and provide suggestions for developing this project.
 
 ## Exploratory Data Analysis
 
@@ -53,12 +53,9 @@ p4 = ggplot(data = df %>% arrange(Date), aes(x = Date, y = Open)) +
 grid.arrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
 ```
 
-Among all variables available in the dataset, we only focused on two variables `Date` and `Close`. Reasons why we didn't use other variables are as follows:
-1. `Open`: The correlation between variables `Open` and `Close` is almost one. This result intuitively makes sense because the average magnitude of daily stock price fluctuation is minimal compared with stock price itself. However, since `Open` and `Close` are almost perfectly correlated, we thought that using `Open` as the predictor for `Close` will not help us understand the research question that we're interested. Therefore, we didn't include `Open` in our analysis.
-2. `High` & `Low` & `Volume`: These three variables are numbers that can only be revealed at the end of each trading day, when the value for `Close` is also revealed. In another word, there's no way for us to know `High`, `Low` or `Volume` ahead of knowing `Close`. Therefore, it doesn't make sense to include any of these as covariates in the model to predict `Close`.
-3. `Adj. Close`: The dataset we downloaded doesn't include a data dictionary about what adjustment is made to `Close`, so we weren't able to use it.
+Among all variables available in the dataset, we mainly focused on three variables `Date`, `Open` (Opening S&P indeces) and `Close` (Closing stock price).
 
-These four companies went to public at very different times, so date ranges for each company in this dataset are very different. From the boxplot, we can see that Amazon, Apple and Google's `Close` are skewed while Facebook's `Close` price is not as skewed as that of the other three companies. From line plots, we can see that before 2005, Amazon and Apple's `Close` are horizontal lines, meaning that there weren't many changes. However, starting in 2005, all four companies experienced dramatic growth in their `Close`. This observation makes sense because of the Internet's boom. To better compare all four companies' close stock price, we decided to align date ranges for them by taking a subset of observations with a date after 2012-08-05 and build models with the subset.
+The line plots of all of the closing prices of the three companies against date, as well as the S&P 500 index against date, show linear trend as time goes by. This is an expected trend as the stock market is continuously inflating, especially since the tech companies have been rapidly developing during the time period that we're looking at. Similarly, the S&P 500 index has an increasing the linear trend. Thus, by using the indeces as a predictor/mean structure, we're able to de-trend the linear trend in the closing prices and then move on to looking at any remaining temporal structure.
 
 ## Method 1: Simple Linear Models
 
