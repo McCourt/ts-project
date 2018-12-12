@@ -527,8 +527,8 @@ if (file.exists("gp_jags.Rdata")) {
   save(exp_cov_coda, file="gp_jags.Rdata")
 }
 
-
 ```
+
 ```{r}
 betas = tidybayes::gather_draws(exp_cov_coda, beta[i]) %>%
   ungroup() %>%
@@ -597,6 +597,31 @@ rbind(
     ylim(0,NA) +
     geom_line(data=d_fit, color='red') +
     facet_wrap(~bw, ncol=2) 
+```
+
+```{r}
+x_pred = 1:365 + rnorm(365, 0.01)
+
+mu = beta0 + beta1*x + beta2*x^2
+mu_pred = beta0 + beta1*x_pred + beta2*x_pred^2
+
+dist_o = fields::rdist(x)
+dist_p = fields::rdist(x_pred)
+dist_op = fields::rdist(x, x_pred)
+dist_po = t(dist_op)
+  
+cov_o  = sq_exp_cov(dist_o,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_p  = sq_exp_cov(dist_p,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_op = sq_exp_cov(dist_op, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_po = sq_exp_cov(dist_po, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+
+cond_cov = cov_p - cov_po %*% solve(cov_o) %*% cov_op
+cond_mu  = mu_pred + cov_po %*% solve(cov_o) %*% (y - mu)
+  
+pred = cond_mu %*% matrix(1, ncol=reps) + t(chol(cond_cov)) %*% matrix(rnorm(length(x_pred)*reps), ncol=reps)
+
+pred_df_emp = pred %>% t() %>% post_summary() %>% mutate(day=x_pred)
+
 ```
 
 ## Conclusion
