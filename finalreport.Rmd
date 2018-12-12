@@ -184,8 +184,156 @@ source("util.R")
 subset = df[1239:1490, ]
 ```
 
+###Apple
 ```{r}
-#Facebook semivariogram
+apple_emp_cloud = subset %>% emp_semivariogram(apple_naive_residual,Date)
+apple_emp = rbind(
+  subset %>% emp_semivariogram(apple_naive_residual, Date, bin=TRUE, binwidth=5)  %>% mutate(binwidth="binwidth=5"),
+  subset %>% emp_semivariogram(apple_naive_residual, Date, bin=TRUE, binwidth=20) %>% mutate(binwidth="binwidth=20"),
+  subset %>% emp_semivariogram(apple_naive_residual, Date, bin=TRUE, binwidth=10) %>% mutate(binwidth="binwidth=10"),
+  subset %>% emp_semivariogram(apple_naive_residual, Date, bin=TRUE, binwidth=40)   %>% mutate(binwidth="binwidth=40"),
+  subset %>% emp_semivariogram(apple_naive_residual, Date, bin=TRUE, binwidth=30)  %>% mutate(binwidth="binwidth=30")
+)
+
+apple_emp %>%
+  ggplot(aes(x=h, y=gamma)) +
+  geom_point(size = 1) +
+  ggtitle("Empirical Semivariogram of Apple (binned)")+
+  facet_wrap(~binwidth, nrow=2)
+```
+
+```{r}
+apple_gp_exp_model = "model{
+  y ~ dmnorm(mu, inverse(Sigma))
+
+  for (i in 1:N) {
+    mu[i] <- beta[1]+ beta[2] * x[i]
+  }
+  
+  for (i in 1:(N-1)) {
+    for (j in (i+1):N) {
+      Sigma[i,j] <- sigma2 * exp(- pow(l*d[i,j],2))
+      Sigma[j,i] <- Sigma[i,j]
+    }
+  }
+
+  for (k in 1:N) {
+    Sigma[k,k] <- sigma2 + sigma2_w
+  }
+
+  for (i in 1:2) {
+    beta[i] ~ dt(coef[i], 2.5, 1)
+  }
+  sigma2_w ~ dnorm(10, 1/25) T(0,)
+  sigma2   ~ dnorm(50, 1/25) T(0,)
+  l        ~ dt(0,2.5,1) T(0,) 
+}"
+```
+
+```{r}
+if (file.exists("apple_gp_jags.Rdata")) {
+  load(file="apple_gp_jags.Rdata")
+} else {
+  m = rjags::jags.model(
+    textConnection(apple_gp_exp_model), 
+    data = list(
+      y = subset$apple_close,
+      x = subset$Open,
+      d = dist(subset$Date) %>% as.matrix(),
+      N = nrow(subset),
+      coef = coef(apple_lm)
+    ),
+    quiet = TRUE
+  )
+
+  update(m, n.iter=2000)
+
+  exp_cov_coda = rjags::coda.samples(
+    m, variable.names=c("beta", "sigma2", "l", "sigma2_w"),
+    n.iter=2000, thin=10
+  )
+  save(exp_cov_coda, file="apple_gp_jags.Rdata")
+}
+```
+
+```{r}
+betas = tidybayes::gather_draws(exp_cov_coda, beta[i]) %>%
+  ungroup() %>%
+  mutate(.variable = paste0(.variable, "[",i,"]")) %>%
+  select(-i)
+betas %>%
+  group_by(.variable) %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.iteration, y=.value, color=.variable)) +
+    geom_line() +
+    facet_grid(.variable~., scales = "free_y")
+params = tidybayes::gather_draws(exp_cov_coda, sigma2, l, sigma2_w)
+params %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.iteration, y=.value, color=.variable)) +
+    geom_line() +
+    facet_grid(.variable~., scales="free_y")
+params %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.value, fill=.variable)) +
+    geom_density() +
+    facet_wrap(~.variable, scales="free") +
+    guides(fill=FALSE)
+params %>%
+  slice(seq(1,n(),length.out=500)) %>% 
+  filter(.variable == "l") %>%
+  ggplot(aes(x=.value, fill=.variable)) +
+    geom_density() +
+    scale_x_log10() +
+    facet_wrap(~.variable, scales="free") +
+    guides(fill=FALSE)
+post = bind_rows(betas, params) %>%
+  group_by(.variable) %>%
+  summarize(
+    post_mean = mean(.value),
+    post_med  = median(.value),
+    post_lower = quantile(.value, probs = 0.025),
+    post_upper = quantile(.value, probs = 0.975)
+  )
+knitr::kable(post, digits = 5)
+l = post %>% filter(.variable == 'l') %>% pull(post_med)
+sigma2 = post %>% filter(.variable == 'sigma2') %>% pull(post_med)
+sigma2_w = post %>% filter(.variable == 'sigma2_w') %>% pull(post_med)
+beta0 = post %>% filter(.variable == 'beta[1]') %>% pull(post_med)
+beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
+df = df %>% mutate(apple_gp_resid = apple_close - beta0 - beta1 * Open)
+
+reps=1000
+x = subset$Open + rnorm(252, 0.01)
+y = subset$apple_close
+x_pred = subset$Open + rnorm(252, 0.01)
+mu = beta0 + beta1*x
+mu_pred = beta0 + beta1*x_pred
+dist_o = fields::rdist(x)
+dist_p = fields::rdist(x_pred)
+dist_op = fields::rdist(x, x_pred)
+dist_po = t(dist_op)
+cov_o  = sq_exp_cov(dist_o,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_p  = sq_exp_cov(dist_p,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_op = sq_exp_cov(dist_op, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_po = sq_exp_cov(dist_po, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cond_cov = cov_p - cov_po %*% solve(cov_o) %*% cov_op
+cond_mu  = mu_pred + cov_po %*% solve(cov_o) %*% (y - mu)
+pred_bayes = cond_mu %*% matrix(1, ncol=reps) + t(chol(cond_cov)) %*% matrix(rnorm(length(x_pred)*reps), ncol=reps)
+apple_pred_df_bayes = pred_bayes %>% t() %>% post_summary() %>% mutate(x=x_pred)
+apple_pred_df_bayes$Date = subset$Date
+ggplot(subset, aes(x=Date)) +
+  geom_line(aes(y=apple_close)) +
+  geom_ribbon(data=apple_pred_df_bayes, aes(ymin=post_lower,ymax=post_upper, x=Date), fill="red", alpha=0.5) +
+  geom_line(data=apple_pred_df_bayes, aes(y=post_mean), color='blue', size=0.5) + 
+  ylab("Apple Daily Close Stock Price")
+#use mean as the predicted value from bayes to calculate RMSE
+rmse(subset$fb_close,apple_pred_df_bayes$post_mean)
+```
+
+
+###Facebook
+```{r}
 fb_emp_cloud = subset %>% emp_semivariogram(fb_naive_residual,Date)
 fb_emp = rbind(
   subset %>% emp_semivariogram(fb_naive_residual, Date, bin=TRUE, binwidth=1)  %>% mutate(binwidth="binwidth=1"),
@@ -304,9 +452,9 @@ beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
 df = df %>% mutate(fb_gp_resid = fb_close - beta0 - beta1 * Open)
 
 reps=1000
-x = df$Open
-y = df$fb_close
-x_pred = df$Open + rnorm(365, 0.01)
+x = subset$Open
+y = subset$fb_close
+x_pred = subset$Open + .5
 mu = beta0 + beta1*x
 mu_pred = beta0 + beta1*x_pred
 dist_o = fields::rdist(x)
@@ -320,17 +468,163 @@ cov_po = sq_exp_cov(dist_po, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
 cond_cov = cov_p - cov_po %*% solve(cov_o) %*% cov_op
 cond_mu  = mu_pred + cov_po %*% solve(cov_o) %*% (y - mu)
 pred_bayes = cond_mu %*% matrix(1, ncol=reps) + t(chol(cond_cov)) %*% matrix(rnorm(length(x_pred)*reps), ncol=reps)
-pred_df_bayes = pred_bayes %>% t() %>% post_summary() %>% mutate(x=x_pred)
-
-
-
-
-
-rmse(new_df$fb_close, new_df$fb_bayes_predict)
-
+fb_pred_df_bayes = pred_bayes %>% t() %>% post_summary() %>% mutate(x=x_pred)
+fb_pred_df_bayes$Date = subset$Date
+ggplot(subset, aes(x=Date)) +
+  geom_line(aes(y=fb_close)) +
+  geom_ribbon(data=fb_pred_df_bayes, aes(ymin=post_lower,ymax=post_upper, x=Date), fill="red", alpha=0.5) +
+  geom_line(data=fb_pred_df_bayes, aes(y=post_mean), color='blue', size=0.5) + 
+  ylab("Facebook Daily Close Stock Price")
+#use mean as the predicted value from bayes to calculate RMSE
+rmse(subset$fb_close,fb_pred_df_bayes$post_mean)
 ```
 
+###Google
+```{r}
+google_emp_cloud = subset %>% emp_semivariogram(google_naive_residual,Date)
+google_emp = rbind(
+  subset %>% emp_semivariogram(google_naive_residual, Date, bin=TRUE, binwidth=1)  %>% mutate(binwidth="binwidth=1"),
+  subset %>% emp_semivariogram(google_naive_residual, Date, bin=TRUE, binwidth=5) %>% mutate(binwidth="binwidth=5"),
+  subset %>% emp_semivariogram(google_naive_residual, Date, bin=TRUE, binwidth=10) %>% mutate(binwidth="binwidth=10"),
+  subset %>% emp_semivariogram(google_naive_residual, Date, bin=TRUE, binwidth=15)   %>% mutate(binwidth="binwidth=15"),
+  subset %>% emp_semivariogram(google_naive_residual, Date, bin=TRUE, binwidth=30)  %>% mutate(binwidth="binwidth=30")
+)
 
+google_emp %>%
+  ggplot(aes(x=h, y=gamma)) +
+  geom_point(size = 1) +
+  ggtitle("Empirical Semivariogram of Google (binned)")+
+  facet_wrap(~binwidth, nrow=2)
+```
+
+```{r}
+google_gp_exp_model = "model{
+  y ~ dmnorm(mu, inverse(Sigma))
+
+  for (i in 1:N) {
+    mu[i] <- beta[1]+ beta[2] * x[i]
+  }
+  
+  for (i in 1:(N-1)) {
+    for (j in (i+1):N) {
+      Sigma[i,j] <- sigma2 * exp(- pow(l*d[i,j],2))
+      Sigma[j,i] <- Sigma[i,j]
+    }
+  }
+
+  for (k in 1:N) {
+    Sigma[k,k] <- sigma2 + sigma2_w
+  }
+
+  for (i in 1:2) {
+    beta[i] ~ dt(coef[i], 2.5, 1)
+  }
+  sigma2_w ~ dnorm(100, 1/100) T(0,)
+  sigma2   ~ dnorm(700, 1/400) T(0,)
+  l        ~ dt(0,2.5,1) T(0,) 
+}"
+```
+
+```{r}
+if (file.exists("google_gp_jags.Rdata")) {
+  load(file="google_gp_jags.Rdata")
+} else {
+  m = rjags::jags.model(
+    textConnection(google_gp_exp_model), 
+    data = list(
+      y = subset$google_close,
+      x = subset$Open,
+      d = dist(subset$Date) %>% as.matrix(),
+      N = nrow(subset),
+      coef = coef(google_lm)
+    ),
+    quiet = TRUE
+  )
+
+  update(m, n.iter=2000)
+
+  exp_cov_coda = rjags::coda.samples(
+    m, variable.names=c("beta", "sigma2", "l", "sigma2_w"),
+    n.iter=2000, thin=10
+  )
+  save(exp_cov_coda, file="google_gp_jags.Rdata")
+}
+```
+
+```{r}
+betas = tidybayes::gather_draws(exp_cov_coda, beta[i]) %>%
+  ungroup() %>%
+  mutate(.variable = paste0(.variable, "[",i,"]")) %>%
+  select(-i)
+betas %>%
+  group_by(.variable) %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.iteration, y=.value, color=.variable)) +
+    geom_line() +
+    facet_grid(.variable~., scales = "free_y")
+params = tidybayes::gather_draws(exp_cov_coda, sigma2, l, sigma2_w)
+params %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.iteration, y=.value, color=.variable)) +
+    geom_line() +
+    facet_grid(.variable~., scales="free_y")
+params %>%
+  slice(seq(1,n(),length.out=500)) %>%
+  ggplot(aes(x=.value, fill=.variable)) +
+    geom_density() +
+    facet_wrap(~.variable, scales="free") +
+    guides(fill=FALSE)
+params %>%
+  slice(seq(1,n(),length.out=500)) %>% 
+  filter(.variable == "l") %>%
+  ggplot(aes(x=.value, fill=.variable)) +
+    geom_density() +
+    scale_x_log10() +
+    facet_wrap(~.variable, scales="free") +
+    guides(fill=FALSE)
+post = bind_rows(betas, params) %>%
+  group_by(.variable) %>%
+  summarize(
+    post_mean = mean(.value),
+    post_med  = median(.value),
+    post_lower = quantile(.value, probs = 0.025),
+    post_upper = quantile(.value, probs = 0.975)
+  )
+knitr::kable(post, digits = 5)
+l = post %>% filter(.variable == 'l') %>% pull(post_med)
+sigma2 = post %>% filter(.variable == 'sigma2') %>% pull(post_med)
+sigma2_w = post %>% filter(.variable == 'sigma2_w') %>% pull(post_med)
+beta0 = post %>% filter(.variable == 'beta[1]') %>% pull(post_med)
+beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
+df = df %>% mutate(google_gp_resid = google_close - beta0 - beta1 * Open)
+
+reps=1000
+x = subset$Open + rnorm(252, 0.01)
+y = subset$google_close
+x_pred = subset$Open + rnorm(252, 0.01)
+mu = beta0 + beta1*x
+mu_pred = beta0 + beta1*x_pred
+dist_o = fields::rdist(x)
+dist_p = fields::rdist(x_pred)
+dist_op = fields::rdist(x, x_pred)
+dist_po = t(dist_op)
+cov_o  = sq_exp_cov(dist_o,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_p  = sq_exp_cov(dist_p,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_op = sq_exp_cov(dist_op, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_po = sq_exp_cov(dist_po, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cond_cov = cov_p - cov_po %*% solve(cov_o) %*% cov_op
+cond_mu  = mu_pred + cov_po %*% solve(cov_o) %*% (y - mu)
+pred_bayes = cond_mu %*% matrix(1, ncol=reps) + t(chol(cond_cov)) %*% matrix(rnorm(length(x_pred)*reps), ncol=reps)
+google_pred_df_bayes = pred_bayes %>% t() %>% post_summary() %>% mutate(x=x_pred)
+google_pred_df_bayes$Date = subset$Date
+ggplot(subset, aes(x=Date)) +
+  geom_line(aes(y=google_close)) +
+  geom_ribbon(data=google_pred_df_bayes, aes(ymin=post_lower,ymax=post_upper, x=Date), fill="red", alpha=0.5) +
+  geom_line(data=google_pred_df_bayes, aes(y=post_mean), color='blue', size=0.5) + 
+  ylab("Google Daily Close Stock Price")
+#use mean as the predicted value from bayes to calculate RMSE
+rmse(subset$google_close,google_pred_df_bayes$post_mean)
+```
 
 ## Conclusion
 
