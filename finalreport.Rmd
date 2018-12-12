@@ -26,13 +26,13 @@ rmse = function(pred, truth){
 
 ## Introduction
 
-For this particular project, we are looking at the stock prices of three major tech companies: Apple, Facebook and Google, from the years of 2012 to 2018. With the , we got access to the dates, opening S&P 500 indeces and closing prices of these companies.
+For this particular project, we are looking at the stock prices of three major tech companies: Apple, Facebook and Google, from the years of 2012 to 2018. We got access to the dates, opening S&P 500 indices and closing prices of these companies from Yahoo Finance.
 
-Based on the nature of stock market, there can potentially be temporal structures when analyzing and predicting stock prices. We took the closing price as the response variable and try to fit appropriate models with the S&P 500 indeces as the mean structure to help predict the closing prices each day for each company, as well as understanding the temporal structures within.
+Based on the nature of stock market, there can potentially be temporal structures when analyzing and predicting stock prices. We took the closing price as the response variable and tried to fit appropriate models with the S&P 500 indices as the mean structure to help predict the closing prices each day for each company, as well as understanding the temporal structures within.
 
 Due to the fact that all of the companies share the same timeline and have data of their own at the same time points, we would have to fit three individual models for each of them. We will first look at some Explanatory Data Analyses for all three companies, then try to fit simpler models with no temporal structures, and finally fit and evaluate temporal models for each company. For the temporal model fitting part specifically, we will try two different methods: both auto-fitting ARIMA models, as well as models with Gaussian Process. We then compared the performances of all three types models fit by both methods.
 
-Lastly, we wish to come to a conclusion for our questions of interest: can we predict the closing prices of stocks with the S&P 500 index solely? Is there any temporal dependency in the closing prices? Are there differences among different companies or they share similar trends and structures in their stocks?  Can this trend or model, potentially with the temporal structure, potentially be generalized to We would also have a discussion on the adequacy, potential problems with the models and provide suggestions for developing this project.
+Lastly, we wish to come to a conclusion for our questions of interest: can we predict the closing prices of stocks with the S&P 500 index solely? Is there any temporal dependency in the closing prices? Are there differences among different companies or do they share similar trends and structures in their stocks?  Can this trend or model, potentially with the temporal structure, potentially be generalized to other companies? We would also have a discussion on the adequacy, potential problems with the models and provide suggestions for developing this project in the future.
 
 ## Exploratory Data Analysis
 
@@ -66,15 +66,15 @@ p3 = ggplot(data = df, aes(x = Open, y = google_close)) +
 grid.arrange(p1, p2, p3, nrow = 2, ncol = 2)
 ```
 
-Among all variables available in the dataset, we mainly focused on three variables `Date`, `Open` (Opening S&P indeces) and `Close` (Closing stock price).
+We mainly focused on three variables `Date`, `Open` (Opening S&P indices) and `Close` (Closing stock price) for all three companies.
 
-The line plots of all of the closing prices of the three companies against date, as well as the S&P 500 index against date, show linear trend as time goes by. This is an expected trend as the stock market is continuously inflating, especially since the tech companies have been rapidly developing during the time period that we're looking at. Similarly, the S&P 500 index has an increasing the linear trend. Thus, by using the indeces as a predictor/mean structure, we're able to de-trend the linear trend in the closing prices and then move on to looking at any remaining temporal structure.
+The line plots of all of the closing prices of the three companies against date, as well as the S&P 500 index against date, show linear trend as time goes by. This is an expected trend as the stock market is continuously inflating, especially since the tech companies have been rapidly developing during the time period that we're looking at. Similarly, the S&P 500 index has an increasing the linear trend. Thus, by using the indices as a predictor/mean structure, we're able to de-trend the linear trend in the closing prices and then move on to looking at any remaining temporal structure.
 
-Then we look at scatter plots of all three companies with the closing price against the open S&P 500 indeces. Even though there is a bit of discrepancy in the trend shown by Apple, it is more or less closer to a linear trend. Thus, the scatter plots further confirmed using the S&P 500 index as the mean structure.
+Then we look at scatter plots of all three companies with the closing price against the open S&P 500 indices. Even though there is a bit of discrepancy in the trend shown by Apple, it is more or less closer to a linear trend. Thus, the scatter plots further confirmed using the S&P 500 index as the mean structure.
 
 ## Method 1: Simple Linear Models
 
-The first method is fitting a simple linear model for each individual company. We used the data to predict the difference between the close price and the open price on each day. Since each day would have price data for all four companies, we would have to build four individual time series models. For the sake of comparing and evaluating model performances, we fit four different linear models as well, instead of using `Stock` as one of the predictors.
+The first method is fitting a simple linear model for each individual company. We used the S&P 500 index to predict daily closing price for all three companies separately. 
 
 ```{r}
 #Apple
@@ -130,7 +130,7 @@ $$
 #Apple
 apple.ts = auto.arima(df %>% select(apple_close), xreg = df$Open, seasonal = TRUE)
 apple.ts %>% summary()
-ggtsdisplay(apple.ts$residuals, main = "ARIMA(2,1,2)")
+ggtsdisplay(apple.ts$residuals, main = "ARIMA(2,1,0)")
 
 #Residual plot looks good and we will go with the result.
 df$apple_ts_pred = c(apple.ts$fitted)
