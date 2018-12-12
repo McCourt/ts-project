@@ -254,7 +254,6 @@ if (file.exists("fb_gp_jags.Rdata")) {
   )
   save(exp_cov_coda, file="fb_gp_jags.Rdata")
 }
-
 ```
 
 ```{r}
@@ -262,30 +261,24 @@ betas = tidybayes::gather_draws(exp_cov_coda, beta[i]) %>%
   ungroup() %>%
   mutate(.variable = paste0(.variable, "[",i,"]")) %>%
   select(-i)
-
 betas %>%
   group_by(.variable) %>%
   slice(seq(1,n(),length.out=500)) %>%
   ggplot(aes(x=.iteration, y=.value, color=.variable)) +
     geom_line() +
     facet_grid(.variable~., scales = "free_y")
-
 params = tidybayes::gather_draws(exp_cov_coda, sigma2, l, sigma2_w)
-
 params %>%
   slice(seq(1,n(),length.out=500)) %>%
   ggplot(aes(x=.iteration, y=.value, color=.variable)) +
     geom_line() +
     facet_grid(.variable~., scales="free_y")
-
 params %>%
   slice(seq(1,n(),length.out=500)) %>%
   ggplot(aes(x=.value, fill=.variable)) +
     geom_density() +
     facet_wrap(~.variable, scales="free") +
     guides(fill=FALSE)
-
-
 params %>%
   slice(seq(1,n(),length.out=500)) %>% 
   filter(.variable == "l") %>%
@@ -294,7 +287,6 @@ params %>%
     scale_x_log10() +
     facet_wrap(~.variable, scales="free") +
     guides(fill=FALSE)
-
 post = bind_rows(betas, params) %>%
   group_by(.variable) %>%
   summarize(
@@ -303,127 +295,40 @@ post = bind_rows(betas, params) %>%
     post_lower = quantile(.value, probs = 0.025),
     post_upper = quantile(.value, probs = 0.975)
   )
-
 knitr::kable(post, digits = 5)
-
 l = post %>% filter(.variable == 'l') %>% pull(post_med)
 sigma2 = post %>% filter(.variable == 'sigma2') %>% pull(post_med)
 sigma2_w = post %>% filter(.variable == 'sigma2_w') %>% pull(post_med)
 beta0 = post %>% filter(.variable == 'beta[1]') %>% pull(post_med)
 beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
-new_df$bayes_resid = new_df$fb_close - beta0 - beta1 * new_df$Open
-new_df$fb_bayes_predict = beta0 + beta1 * new_df$Open
-d_fit = data_frame(h=seq(0, 300, length.out = 1000)) %>% mutate(gamma = sq_exp_sv(h, sigma2, l, sigma2_w))
+df = df %>% mutate(fb_gp_resid = fb_close - beta0 - beta1 * Open)
+
+reps=1000
+x = df$Open
+y = df$fb_close
+x_pred = df$Open + rnorm(365, 0.01)
+mu = beta0 + beta1*x
+mu_pred = beta0 + beta1*x_pred
+dist_o = fields::rdist(x)
+dist_p = fields::rdist(x_pred)
+dist_op = fields::rdist(x, x_pred)
+dist_po = t(dist_op)
+cov_o  = sq_exp_cov(dist_o,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_p  = sq_exp_cov(dist_p,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_op = sq_exp_cov(dist_op, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cov_po = sq_exp_cov(dist_po, sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
+cond_cov = cov_p - cov_po %*% solve(cov_o) %*% cov_op
+cond_mu  = mu_pred + cov_po %*% solve(cov_o) %*% (y - mu)
+pred_bayes = cond_mu %*% matrix(1, ncol=reps) + t(chol(cond_cov)) %*% matrix(rnorm(length(x_pred)*reps), ncol=reps)
+pred_df_bayes = pred_bayes %>% t() %>% post_summary() %>% mutate(x=x_pred)
+
+
+
+
+
 rmse(new_df$fb_close, new_df$fb_bayes_predict)
-##can't make the code below work
-rbind(
-  new_df %>% emp_semivariogram(bayes_resid, x, bin=TRUE, binwidth=10, range_max=180) %>% mutate(bw = "binwidth=10"),
-  new_df %>% emp_semivariogram(bayes_resid, x, bin=TRUE, binwidth=5, range_max=180) %>% mutate(bw = "binwidth=5")
-) %>%
-  ggplot(aes(x=h, y=gamma)) +
-    geom_point() +
-    ylim(0,NA) +
-    geom_line(data=d_fit, color='red') +
-    facet_wrap(~bw, ncol=2) 
+
 ```
-
-
-
-```{r echo=FALSE, fig.height=4.5}
-
-apple_emp_cloud = apple.stock %>% emp_semivariogram(Diff,Date)
-
-apple_emp = rbind(
-  apple.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
-  apple.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
-  apple.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
-  apple.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
-)
-
-apple_emp %>%
-  ggplot(aes(x=h, y=gamma)) +
-  geom_point(size = 1) +
-  ggtitle("Empirical Semivariogram of Apple (binned)")+
-  facet_wrap(~binwidth, nrow=2)
-```
-
-```{r}
-gp_model = "model{
-  y ~ dmnorm(0, inverse(Sigma))
-  
-  for (i in 1:(N-1)) {
-    for (j in (i+1):N) {
-      Sigma[i,j] <- sigma2 * exp(- pow(l*d[i,j],2))
-      Sigma[j,i] <- Sigma[i,j]
-    }
-  }
-
-  for (k in 1:N) {
-    Sigma[k,k] <- sigma2 + sigma2_w
-  }
-
-  sigma2_w ~ dnorm(5, 1/25) T(0,)
-  sigma2   ~ dnorm(12.5, 1/25) T(0,)
-  l        ~ dt(0, 2.5, 1) T(0,) 
-}"
-```
-
-```{r}
-m = rjags::jags.model(
-    textConnection(gp_model), 
-    data = list(
-      y = apple.stock$Diff,
-      x = apple.stock$Date,
-      d = dist(apple.stock$Date) %>% as.matrix(),
-      N = nrow(apple.stock),
-      coef = coef(l)
-    ),
-    quiet = TRUE
-  )
-
-  update(m, n.iter=10000)
-
-  exp_cov_coda = rjags::coda.samples(
-    m, variable.names=c("sigma2", "l", "sigma2_w"),
-    n.iter=10000, thin=10
-  )
-  save(exp_cov_coda, file="gp_jags.Rdata")
-```
-
-```{r echo=FALSE, fig.height=4.5}
-facebook_emp_cloud = facebook.stock %>% emp_semivariogram(Diff,Date)
-
-facebook_emp = rbind(
-  facebook.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
-  facebook.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
-  facebook.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
-  facebook.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
-)
-
-facebook_emp %>%
-  ggplot(aes(x=h, y=gamma)) +
-  geom_point(size = 1) +
-  ggtitle("Empirical Semivariogram of Facebook (binned)")
-  facet_wrap(~binwidth, nrow=2)
-```
-
-```{r echo=FALSE, fig.height=4.5}
-google_emp_cloud = google.stock %>% emp_semivariogram(Diff,Date)
-
-google_emp = rbind(
-  google.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.05)  %>% mutate(binwidth="binwidth=0.05"),
-  google.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.075) %>% mutate(binwidth="binwidth=0.075"),
-  google.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.1)   %>% mutate(binwidth="binwidth=0.1"),
-  google.stock %>% emp_semivariogram(Diff, Date, bin=TRUE, binwidth=0.15)  %>% mutate(binwidth="binwidth=0.15")
-)
-
-google_emp %>%
-  ggplot(aes(x=h, y=gamma)) +
-  geom_point(size = 1) +
-  ggtitle("Empirical Semivariogram of Apple (binned)")
-  facet_wrap(~binwidth, nrow=2)
-```
-
 
 
 
