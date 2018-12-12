@@ -176,7 +176,14 @@ rmse(df$fb_close, df$fb_ts_pred)
 google.ts = auto.arima(df %>% select(google_close), xreg = df$Open, seasonal = TRUE)
 google.ts %>% summary()
 ggtsdisplay(google.ts$residuals, main = "ARIMA(2,1,2)")
-#Although we can see spikes but given that the autocorrelation is lower than 0.04, we decided to go with the model output from auto.arima
+#From ACF/PACF plots, we found spikes and potential periodic trend so we tried to add seasonal terms to the model.
+google.try1 = Arima(df %>% select(google_close), xreg = df$Open, order = c(2, 1, 2),seasonal = list(order = c(0, 1, 0),period = 7))
+ggtsdisplay(google.try1$residuals)
+google.try2 = Arima(df %>% select(google_close), xreg = df$Open, order = c(2, 1, 2),seasonal = list(order = c(1, 1, 0),period = 7))
+ggtsdisplay(google.try2$residuals)
+google.try3 = Arima(df %>% select(google_close), xreg = df$Open, order = c(2, 1, 2),seasonal = list(order = c(0, 1, 1),period = 7))
+ggtsdisplay(google.try3$residuals)
+#However, after trying different combinations of seasonal terms, we found that ACF/PACF haven't improved much. Plus, autocorrelation value relatively low. So we decided to go with the result from auto.arima function.
 df$google_ts_pred = c(google.ts$fitted)
 ggplot(data = df, aes(x = Date)) +
   geom_line(aes(y = google_close, color = "red")) +
@@ -376,14 +383,16 @@ beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
 df = df %>% mutate(apple_gp_resid = apple_close - beta0 - beta1 * Open)
 
 reps=1000
-x = subset$Open + rnorm(252, 0.01)
+x = subset$Open
 y = subset$apple_close
-x_pred = subset$Open + rnorm(252, 0.01)
+d = subset$Date
+x_pred = subset$Open
+d_pred = subset$Date + rnorm(252, 0.01)
 mu = beta0 + beta1*x
 mu_pred = beta0 + beta1*x_pred
-dist_o = fields::rdist(x)
-dist_p = fields::rdist(x_pred)
-dist_op = fields::rdist(x, x_pred)
+dist_o = fields::rdist(d)
+dist_p = fields::rdist(d_pred)
+dist_op = fields::rdist(d, d_pred)
 dist_po = t(dist_op)
 cov_o  = sq_exp_cov(dist_o,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
 cov_p  = sq_exp_cov(dist_p,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
@@ -531,12 +540,14 @@ df = df %>% mutate(fb_gp_resid = fb_close - beta0 - beta1 * Open)
 reps=1000
 x = subset$Open
 y = subset$fb_close
-x_pred = subset$Open + .5
+d = subset$Date
+x_pred = subset$Open
+d_pred = subset$Date + rnorm(252, 0.01)
 mu = beta0 + beta1*x
 mu_pred = beta0 + beta1*x_pred
-dist_o = fields::rdist(x)
-dist_p = fields::rdist(x_pred)
-dist_op = fields::rdist(x, x_pred)
+dist_o = fields::rdist(d)
+dist_p = fields::rdist(d_pred)
+dist_op = fields::rdist(d, d_pred)
 dist_po = t(dist_op)
 cov_o  = sq_exp_cov(dist_o,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
 cov_p  = sq_exp_cov(dist_p,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
@@ -706,14 +717,16 @@ beta1 = post %>% filter(.variable == 'beta[2]') %>% pull(post_med)
 df = df %>% mutate(google_gp_resid = google_close - beta0 - beta1 * Open)
 
 reps=1000
-x = subset$Open + rnorm(252, 0.01)
+x = subset$Open
 y = subset$google_close
-x_pred = subset$Open + rnorm(252, 0.01)
+d = subset$Date
+x_pred = subset$Open
+d_pred = subset$Date + rnorm(252, 0.01)
 mu = beta0 + beta1*x
 mu_pred = beta0 + beta1*x_pred
-dist_o = fields::rdist(x)
-dist_p = fields::rdist(x_pred)
-dist_op = fields::rdist(x, x_pred)
+dist_o = fields::rdist(d)
+dist_p = fields::rdist(d_pred)
+dist_op = fields::rdist(d, d_pred)
 dist_po = t(dist_op)
 cov_o  = sq_exp_cov(dist_o,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
 cov_p  = sq_exp_cov(dist_p,  sigma2 = sigma2, l = l, sigma2_w = sigma2_w)
