@@ -22,6 +22,9 @@ df$apple_close = as.numeric(as.character(df$apple_close))
 rmse = function(pred, truth){
   sqrt(mean((pred - truth)^2))
 }
+upper.b = 1239
+lower.b = 1490
+source("util.R")
 ```
 
 ## Introduction
@@ -78,7 +81,7 @@ The first method is fitting a simple linear model for each individual company. W
 
 ```{r}
 #Apple
-apple_lm = lm(apple_close ~ Open, data = df)
+apple_lm = lm(apple_close ~ Open + Date, data = df)
 summary(apple_lm)
 df$apple_naive_pred = predict(apple_lm, data=df$Open)
 df$apple_naive_residual = df$apple_close - df$apple_naive_pred
@@ -89,9 +92,10 @@ ggplot(data = df, aes(x = Date)) +
   ylab("Apple Daily Close Stock Price") +
   ggtitle("Simple Linear Model")
 rmse(df$apple_close, df$apple_naive_pred)
+rmse(df$apple_close[lower.b:upper.b], df$apple_naive_pred[lower.b:upper.b])
 
 #Facebook
-fb_lm = lm(fb_close ~ Open, data = df)
+fb_lm = lm(fb_close ~ Open + Date, data = df)
 summary(fb_lm)
 df$fb_naive_pred = predict(fb_lm, data=df$Open)
 df$fb_naive_residual = df$fb_close - df$fb_naive_pred
@@ -102,9 +106,10 @@ ggplot(data = df, aes(x = Date)) +
   ylab("Facebook Daily Close Stock Price") +
   ggtitle("Simple Linear Model")
 rmse(df$fb_close, df$fb_naive_pred)
+rmse(df$fb_close[lower.b:upper.b], df$fb_naive_pred[lower.b:upper.b])
 
 #Google
-google_lm = lm(google_close ~ Open, data = df)
+google_lm = lm(google_close ~ Open + Date, data = df)
 summary(google_lm)
 df$google_naive_pred = predict(google_lm, data=df$Open)
 df$google_naive_residual = df$google_close - df$google_naive_pred
@@ -115,6 +120,7 @@ ggplot(data = df, aes(x = Date)) +
   ylab("Google Daily Close Stock Price") +
   ggtitle("Simple Linear Model")
 rmse(df$google_close, df$google_naive_pred)
+rmse(df$google_close[lower.b:upper.b], df$google_naive_pred[lower.b:upper.b])
 ```
 
 
@@ -150,6 +156,7 @@ ggplot(data = df, aes(x = Date)) +
   ylab("Apple Daily Close Stock Price") +
   ggtitle("ARIMA(2,1,0)")
 rmse(df$apple_close, df$apple_ts_pred)
+rmse(df$apple_close[lower.b:upper.b], df$apple_ts_pred[lower.b:upper.b])
 ```
 
 
@@ -172,6 +179,7 @@ ggplot(data = df, aes(x = Date)) +
   ylab("Facebook Daily Close Stock Price") +
   ggtitle("ARIMA(2,1,2)")
 rmse(df$fb_close, df$fb_ts_pred)
+rmse(df$fb_close[lower.b:upper.b], df$fb_ts_pred[lower.b:upper.b])
 ```
 
 ```{r}
@@ -195,6 +203,8 @@ ggplot(data = df, aes(x = Date)) +
   ylab("Google Daily Close Stock Price") +
   ggtitle("ARIMA(2,1,2)")
 rmse(df$google_close, df$google_ts_pred)
+rmse(df$google_close[lower.b:upper.b], df$google_ts_pred[lower.b:upper.b])
+
 ```
 
 
@@ -206,10 +216,8 @@ w_{t} \sim GP(0,\Sigma)\\
 \Sigma \sim square \ exponential
 $$
 Because it takes a long time for JAGS to run large datasets, we subset the dataset to a year of data from 2017-4-21 to 2018-4-20.
-
-```{r, include=FALSE}
-source("util.R")
-subset = df[1239:1490, ]
+```{r include=FALSE}
+subset = df[lower.b:upper.b, ]
 ```
 
 ###Apple
@@ -254,7 +262,7 @@ apple_gp_exp_model = "model{
 }"
 ```
 
-```{r}
+```{r include=FALSE}
 if (file.exists("apple_gp_jags.Rdata")) {
   load(file="apple_gp_jags.Rdata")
 } else {
@@ -351,7 +359,8 @@ ggplot(subset, aes(x=Date)) +
   geom_line(data=apple_pred_df_bayes, aes(y=post_mean), color='blue', size=0.5) + 
   ylab("Apple Daily Close Stock Price")
 #use mean as the predicted value from bayes to calculate RMSE
-rmse(subset$fb_close,apple_pred_df_bayes$post_mean)
+subset$apple_gp_pred = apple_pred_df_bayes$post_mean
+rmse(subset$apple_close, subset$apple_gp_pred)
 ```
 
 
@@ -397,7 +406,7 @@ fb_gp_exp_model = "model{
 }"
 ```
 
-```{r}
+```{r include=FALSE}
 if (file.exists("fb_gp_jags.Rdata")) {
   load(file="fb_gp_jags.Rdata")
 } else {
@@ -494,7 +503,8 @@ ggplot(subset, aes(x=Date)) +
   geom_line(data=fb_pred_df_bayes, aes(y=post_mean), color='blue', size=0.5) + 
   ylab("Facebook Daily Close Stock Price")
 #use mean as the predicted value from bayes to calculate RMSE
-rmse(subset$fb_close,fb_pred_df_bayes$post_mean)
+subset$fb_gp_pred = fb_pred_df_bayes$post_mean
+rmse(subset$fb_close, subset$fb_gp_pred)
 ```
 
 ###Google
@@ -539,7 +549,7 @@ google_gp_exp_model = "model{
 }"
 ```
 
-```{r}
+```{r include=FALSE}
 if (file.exists("google_gp_jags.Rdata")) {
   load(file="google_gp_jags.Rdata")
 } else {
@@ -636,9 +646,39 @@ ggplot(subset, aes(x=Date)) +
   geom_line(data=google_pred_df_bayes, aes(y=post_mean), color='blue', size=0.5) + 
   ylab("Google Daily Close Stock Price")
 #use mean as the predicted value from bayes to calculate RMSE
-rmse(subset$google_close,google_pred_df_bayes$post_mean)
+subset$google_gp_pred = google_pred_df_bayes$post_mean
+rmse(subset$google_close, subset$google_gp_pred)
 ```
 
 ## Conclusion
 
+```{r}
+subset %>% summarise(method = "rmse",
+                     google.lm = rmse(google_close, google_naive_pred),
+                     google.arima = rmse(google_close, google_ts_pred),
+                     google.gp = rmse(google_close, google_gp_pred),
+                     fb.lm = rmse(fb_close, fb_naive_pred),
+                     fb.arima = rmse(fb_close, fb_ts_pred),
+                     fb.gp = rmse(fb_close, fb_gp_pred),
+                     apple.lm = rmse(apple_close, apple_naive_pred),
+                     apple.arima = rmse(apple_close, apple_ts_pred),
+                     apple.gp = rmse(apple_close, apple_gp_pred))
+```
+
+1. The time series trend in `Close` does exists and need a time-series model to expalin.
+
+2. Linear model can not explain time variablility fully, while ARIMA model and Gaussian process does a much better job. As we can see RMSE decreases as we switch from linear model to ARIMA and then to Gaussian process. 
+
+3. Gaussian model outperforms ARIMA. The reason is probably that the appearence of weekends weakens the discrete assumption. Gaussian process considers the distance between days in a continuous way instead of a discrete way like ARIMA and therefore constructs a more expressive correlation between days.
+
+4. Weakness of Gaussian process is the fitting time. The fitting of 1000 entries never finished and the disablity to fit large scale data diminishes its predictive capability even if it already has the highes precision now. At the same time ARIMA has an advantage in the training time meanwhile maintaining acceptable increase in error.
+
+5. Validation and testing. Due to the fact we are actually testing on the training data, the overfitting situation may occur and cause issues in extrapolation.
+
+6. Our model has successfully explained some of the time-series variability.
+
 ## Discussion
+
+1. FItting more data into a Gaussian process. Maybe parallel computing or a more powerful CPU can be a way to solution. Try RNN may also help as GP is a infinite neural network.
+
+2. If the time series are strictly discrete, ARIMA model may be better in both complexity and prediction.
